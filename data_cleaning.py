@@ -4,49 +4,59 @@ import numpy as np
 def clean_car_dataframe(df):
 
     ############################################################################################################## 
+    # Numerical columns:
+    ##############################################################################################################
 
-    # Numerical columns
-    
-    # column carID (set as index, no duplicates)
+    # column carID (set as index, has no duplicates)
     df = df.set_index('carID')
 
-    # column year (hat noch einen ausreisser: 1970) -> später spalte age berechnen, funktioniert für models besser
+
+    # column year: 1970 to 2024 (outlier handling: set between 1970 and 2025, otherwise null, float values not needed, so convert to Int) 
     df['year'] = df['year'].apply(lambda x: x if 1970 <= x <= 2025 else np.nan)
     df['year'] = np.floor(pd.to_numeric(df['year'], errors='coerce')).astype('Int64')
     
-    # column mileage (-58.000 to 323.000 -> negative null)
+
+    # column mileage: -58.000 to 323.000 (outlier handling: set negative mileage null, max mileage 323.000 is realistic, float values not needed, so convert to Int)
     df['mileage'] = df['mileage'].apply(lambda x: x if x >= 0 else np.nan)
     df['mileage'] = np.floor(pd.to_numeric(df['mileage'], errors='coerce')).astype('Int64')
 
-    # column tax (-91 to 580 -> negative null)
+
+    # column tax: -91 to 580 (outlier handling: set negative tax null, max tax 580 is maybe realistic, float values not needed, so convert to Int)
     df['tax'] = df['tax'].apply(lambda x: x if x >= 0 else np.nan)
     df['tax'] = np.floor(pd.to_numeric(df['tax'], errors='coerce')).astype('Int64')
 
-    # column mpg (-43 to 470, usually 10-120, cap, set to null)
+
+    # column mpg: -43 to 470 (outlier handling: mpg is usually 10-120, so set negative and < 5 null, max to 200, float values not needed, so convert to Int)
     df['mpg'] = df['mpg'].apply(lambda x: x if 5 <= x <= 200 else np.nan)
     df['mpg'] = np.floor(pd.to_numeric(df['mpg'], errors='coerce')).astype('Int64')
 
-    # column engineSize
+
+    # column engineSize: -0.1 to 6.6 (outlier handling: engineSize is usually 1.4 to 6.3 but 6.6 possible, so set negative and < 0.6 null, max to 9)
     df['engineSize'] = df['engineSize'].apply(lambda x: x if 0.6 <= x <= 9.0 else np.nan)
     df['engineSize'] = df['engineSize'].round(1)
 
-    # column paintQuality% (70-100, manche ausreißer 125 - median impute or cap auf 100?)
+
+    # column paintQuality%: 70-100, few outliers 1.6 or 125 (outlier handling: set <70 null, max 100, float values not needed, so convert to Int)
     df = df.rename(columns={'paintQuality%': 'paintQuality'})
-    df['paintQuality'] = df['paintQuality'].apply(lambda x: x if 0 <= x <= 100 else np.nan) # oder halt auf 100 cappen
+    df['paintQuality'] = df['paintQuality'].apply(lambda x: x if 70 <= x <= 100 else np.nan)
     df['paintQuality'] = np.floor(pd.to_numeric(df['paintQuality'], errors='coerce')).astype('Int64')
 
-    # column previousOwners
+
+    # column previousOwners: -2.3 to 6.2 (outlier handling: set negative and null, float values not needed, so convert to Int)
     df.loc[df['previousOwners'] < 0, 'previousOwners'] = np.nan
     df['previousOwners'] = np.floor(pd.to_numeric(df['previousOwners'], errors='coerce')).astype('Int64')
 
-    # column hasDamage (0/nan, not sure if nan means damaged)
+
+    # column hasDamage (0/nan, not sure if nan means damaged, convert to Int)
     df['hasDamage'] = df['hasDamage'].astype('Int64')
 
+
+
+    ############################################################################################################## 
+    # Categorical columns:
     ##############################################################################################################
 
-    # Categorical columns
-
-    # column brand
+    # column brand: map all incorrect spellings to the right brand
     brand_map = {
         'VW': ['VW', 'V', 'W', 'vw', 'v', 'w'],
         'Toyota': ['Toyota', 'TOYOTA', 'Toyot', 'toyota', 'oyota', 'TOYOT', 'OYOTA'],
@@ -65,7 +75,7 @@ def clean_car_dataframe(df):
     df['Brand'] = df['Brand'].replace({None: np.nan})
 
 
-    # column model
+    # column model: map all incorrect spellings to the right model
     model_map = {
         # VW
         'golf': ['golf', 'gol', 'golf s', 'golf sv'],
@@ -163,7 +173,7 @@ def clean_car_dataframe(df):
     df['model'] = df['model'].replace({None: np.nan})
 
 
-    # column transmission
+    # column transmission: map all incorrect spellings to the right transmission type
     trans_map = {
         'Manual': ['manual', 'manua', 'anual', 'emi-auto', 'MANUAL'],
         'Semi-Auto': ['semi-auto', 'semi-aut', 'semi-aut', 'semi-aut', 'emi-auto'],
@@ -175,7 +185,8 @@ def clean_car_dataframe(df):
     df['transmission'] = df['transmission'].astype(str).str.strip().str.lower().map(reverse_trans)
     df['transmission'] = df['transmission'].replace({None: np.nan})
 
-    # column fuelType
+
+    # column fuelType: map all incorrect spellings to the right fuelType
     fuel_map = {
         'Petrol': ['petrol', 'petro', 'etrol', 'etro'], 
         'Diesel': ['diesel', 'dies', 'iesel', 'diese', 'iese', 'diesele'],
@@ -188,9 +199,7 @@ def clean_car_dataframe(df):
     df['fuelType'] = df['fuelType'].replace({None: np.nan})
 
 
-    #####
-
-    # build model -> brand mapping
+    # build model -> brand mapping: there are rows, where column model is filled, but brand is not. a back mapping is possible
     model_to_brand = {}
     for brand, models in {
         'VW': ['golf', 'passat', 'polo', 'tiguan', 'touran', 'up', 'sharan', 'scirocco', 'amarok', 'arteon', 'beetle'],
@@ -208,7 +217,7 @@ def clean_car_dataframe(df):
         for m in models:
             model_to_brand[m] = brand
 
-    # fill missing Brand from model
+    # fill missing brand from model
     df.loc[df['Brand'].isna() & df['model'].notna(), 'Brand'] = \
         df.loc[df['Brand'].isna() & df['model'].notna(), 'model'].map(model_to_brand)
 
