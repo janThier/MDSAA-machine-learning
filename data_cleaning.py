@@ -11,45 +11,58 @@ def clean_car_dataframe(df):
     df = df.set_index('carID')
 
 
-    # column year: 1970 to 2024 (outlier handling: set between 1970 and 2025, otherwise null, float values not needed, so convert to Int) 
-    df['year'] = df['year'].apply(lambda x: x if 1970 <= x <= 2025 else np.nan)
-    df['year'] = np.floor(pd.to_numeric(df['year'], errors='coerce')).astype('Int64')
-    
-
-    # column mileage: -58.000 to 323.000 (outlier handling: set negative mileage null, max mileage 323.000 is realistic, float values not needed, so convert to Int)
-    df['mileage'] = df['mileage'].apply(lambda x: x if x >= 0 else np.nan)
-    df['mileage'] = np.floor(pd.to_numeric(df['mileage'], errors='coerce')).astype('Int64')
+    # column year: 1970 to 2024 
+    # (outlier handling: set between 1970 and 2025, otherwise null; float values not needed, so convert to Int)
+    df['year'] = pd.to_numeric(df['year'], errors='coerce')
+    df.loc[~df['year'].between(1970, 2025), 'year'] = np.nan
+    df['year'] = np.floor(df['year']).astype('Int64')
 
 
-    # column tax: -91 to 580 (outlier handling: set negative tax null, max tax 580 is maybe realistic, float values not needed, so convert to Int)
-    df['tax'] = df['tax'].apply(lambda x: x if x >= 0 else np.nan)
-    df['tax'] = np.floor(pd.to_numeric(df['tax'], errors='coerce')).astype('Int64')
+    # column mileage: -58.000 to 323.000 
+    # (outlier handling: set negative mileage null; max mileage 323.000 is realistic; float values not needed, so convert to Int)
+    df['mileage'] = pd.to_numeric(df['mileage'], errors='coerce')
+    df.loc[df['mileage'] < 0, 'mileage'] = np.nan
+    df['mileage'] = np.floor(df['mileage']).astype('Int64')
 
 
-    # column mpg: -43 to 470 (outlier handling: mpg is usually 10-120, so set negative and < 5 null, max to 200, float values not needed, so convert to Int)
-    df['mpg'] = df['mpg'].apply(lambda x: x if 5 <= x <= 200 else np.nan)
-    df['mpg'] = np.floor(pd.to_numeric(df['mpg'], errors='coerce')).astype('Int64')
+    # column tax: -91 to 580 
+    # (outlier handling: set negative tax null; max tax 580 is maybe realistic; float values not needed, so convert to Int)
+    df['tax'] = pd.to_numeric(df['tax'], errors='coerce')
+    df.loc[df['tax'] < 0, 'tax'] = np.nan
+    df['tax'] = np.floor(df['tax']).astype('Int64')
 
 
-    # column engineSize: -0.1 to 6.6 (outlier handling: engineSize is usually 1.4 to 6.3 but 6.6 possible, so set negative and < 0.6 null, max to 9)
-    df['engineSize'] = df['engineSize'].apply(lambda x: x if 0.6 <= x <= 9.0 else np.nan)
+    # column mpg: -43 to 470 
+    # (outlier handling: mpg is usually 10–120, so set <5 and >150 null; float values not needed, so convert to Int)
+    df['mpg'] = pd.to_numeric(df['mpg'], errors='coerce')
+    df.loc[~df['mpg'].between(5, 150), 'mpg'] = np.nan
+    df['mpg'] = np.floor(df['mpg']).astype('Int64')
+
+
+    # column engineSize: -0.1 to 6.6 
+    # (outlier handling: engineSize is usually 1.4–6.3 but 6.6 possible; set <0.6 null, max to 9)
+    df['engineSize'] = pd.to_numeric(df['engineSize'], errors='coerce')
+    df.loc[~df['engineSize'].between(0.6, 9.0), 'engineSize'] = np.nan
     df['engineSize'] = df['engineSize'].round(1)
 
 
-    # column paintQuality%: 70-100, few outliers 1.6 or 125 (outlier handling: set <70 null, max 100, float values not needed, so convert to Int)
+    # column paintQuality%: 70–100, few outliers 1.6 or 125 
+    # (outlier handling: set <70 null, max 100; float values not needed, so convert to Int)
     df = df.rename(columns={'paintQuality%': 'paintQuality'})
-    df['paintQuality'] = df['paintQuality'].apply(lambda x: x if 70 <= x <= 100 else np.nan)
-    df['paintQuality'] = np.floor(pd.to_numeric(df['paintQuality'], errors='coerce')).astype('Int64')
+    df['paintQuality'] = pd.to_numeric(df['paintQuality'], errors='coerce')
+    df.loc[~df['paintQuality'].between(70, 100), 'paintQuality'] = np.nan
+    df['paintQuality'] = np.floor(df['paintQuality']).astype('Int64')
 
 
-    # column previousOwners: -2.3 to 6.2 (outlier handling: set negative and null, float values not needed, so convert to Int)
+    # column previousOwners: -2.3 to 6.2 
+    # (outlier handling: set negative null; float values not needed, so convert to Int)
+    df['previousOwners'] = pd.to_numeric(df['previousOwners'], errors='coerce')
     df.loc[df['previousOwners'] < 0, 'previousOwners'] = np.nan
-    df['previousOwners'] = np.floor(pd.to_numeric(df['previousOwners'], errors='coerce')).astype('Int64')
+    df['previousOwners'] = np.floor(df['previousOwners']).astype('Int64')
 
 
     # column hasDamage (0/nan, not sure if nan means damaged, convert to Int)
-    df['hasDamage'] = df['hasDamage'].astype('Int64')
-
+    df['hasDamage'] = pd.to_numeric(df['hasDamage'], errors='coerce').astype('Int64')
 
 
     ############################################################################################################## 
