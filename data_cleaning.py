@@ -47,11 +47,11 @@ def clean_car_dataframe(df):
     df['engineSize'] = df['engineSize'].round(1)
 
 
-    # column paintQuality%: 70–100, few outliers 1.6 or 125 
-    # (outlier handling: set <70 null, max 100; float values not needed, so convert to Int)
+    # column paintQuality%: 1.6 to 125 
+    # (outlier handling: set < 5 null because these are float values and outliers (see EDA), max 100; float values not needed, so convert to Int)
     df = df.rename(columns={'paintQuality%': 'paintQuality'})
     df['paintQuality'] = pd.to_numeric(df['paintQuality'], errors='coerce')
-    df.loc[~df['paintQuality'].between(70, 100), 'paintQuality'] = np.nan
+    df.loc[~df['paintQuality'].between(5, 100), 'paintQuality'] = np.nan
     df['paintQuality'] = np.floor(df['paintQuality']).astype('Int64')
 
 
@@ -62,7 +62,7 @@ def clean_car_dataframe(df):
     df['previousOwners'] = np.floor(df['previousOwners']).astype('Int64')
 
 
-    # column hasDamage (0/nan, not sure if nan means damaged, convert to Int)
+    # column hasDamage (0/nan -> we cannot say that nan means damaged so this feature will be ignored, convert to Int) 
     df['hasDamage'] = pd.to_numeric(df['hasDamage'], errors='coerce').astype('Int64')
 
 
