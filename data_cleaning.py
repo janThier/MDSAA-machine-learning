@@ -16,12 +16,13 @@ def clean_car_dataframe(df):
     df['year'] = pd.to_numeric(df['year'], errors='coerce')
     df.loc[~df['year'].between(1970, 2025), 'year'] = np.nan
     df['year'] = np.floor(df['year']).astype('Int64')
+    # TODO what about the entries with year > 2020? The database is from 2020 so entries > 2020 are suspicious (maybe cap at 2020 or KNN using features like mileage and price that strongly correlate with year?) ~Jan
 
 
     # column mileage: -58.000 to 323.000 
     # (outlier handling: set negative mileage null; max mileage 323.000 is realistic; float values not needed, so convert to Int)
     df['mileage'] = pd.to_numeric(df['mileage'], errors='coerce')
-    df.loc[df['mileage'] < 0, 'mileage'] = np.nan
+    df.loc[df['mileage'] < 0, 'mileage'] = np.nan # TODO try to use absolute values or KNN imputer instead of setting to null and evaluate performance ~Jan
     df['mileage'] = np.floor(df['mileage']).astype('Int64')
 
 
