@@ -11,18 +11,16 @@ def clean_car_dataframe(df):
     df = df.set_index('carID')
 
 
-    # column year: 1970 to 2024 
-    # (outlier handling: set between 1970 and 2025, otherwise null; float values not needed, so convert to Int)
+    # column year: 1970 to 2020 
+    # (outlier handling: set between 1970 and 2020 because data is from 2020, otherwise null; float values not needed, so convert to Int)
     df['year'] = pd.to_numeric(df['year'], errors='coerce')
-    df.loc[~df['year'].between(1970, 2025), 'year'] = np.nan
+    df.loc[~df['year'].between(1970, 2020), 'year'] = np.nan # TODO undo to 2024 for best model
     df['year'] = np.floor(df['year']).astype('Int64')
-    # TODO what about the entries with year > 2020? The database is from 2020 so entries > 2020 are suspicious (maybe cap at 2020 or KNN using features like mileage and price that strongly correlate with year?) ~Jan
-
 
     # column mileage: -58.000 to 323.000 
     # (outlier handling: set negative mileage null; max mileage 323.000 is realistic; float values not needed, so convert to Int)
     df['mileage'] = pd.to_numeric(df['mileage'], errors='coerce')
-    df.loc[df['mileage'] < 0, 'mileage'] = np.nan # TODO try to use absolute values or KNN imputer instead of setting to null and evaluate performance ~Jan
+    df.loc[df['mileage'] < 0, 'mileage'] = np.nan
     df['mileage'] = np.floor(df['mileage']).astype('Int64')
 
 
@@ -51,7 +49,7 @@ def clean_car_dataframe(df):
     # (outlier handling: set < 5 null because these are float values and outliers (see EDA), max 100; float values not needed, so convert to Int)
     df = df.rename(columns={'paintQuality%': 'paintQuality'})
     df['paintQuality'] = pd.to_numeric(df['paintQuality'], errors='coerce')
-    df.loc[~df['paintQuality'].between(5, 100), 'paintQuality'] = np.nan
+    df.loc[~df['paintQuality'].between(5, 100), 'paintQuality'] = np.nan # TODO undo to (70,100) for best model
     df['paintQuality'] = np.floor(df['paintQuality']).astype('Int64')
 
 
