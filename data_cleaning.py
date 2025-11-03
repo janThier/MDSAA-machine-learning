@@ -18,7 +18,7 @@ def clean_car_dataframe(df):
     df['year'] = np.floor(df['year']).astype('Int64')
 
     # column mileage: -58.000 to 323.000 
-    # (outlier handling: set negative mileage null; max mileage 323.000 is realistic; float values not needed, so convert to Int)
+    # (outlier handling: set negative mileage null; max mileage 323.000 is realistic; float values not needed, so convert to Int) # TODO absolute testen
     df['mileage'] = pd.to_numeric(df['mileage'], errors='coerce')
     df.loc[df['mileage'] < 0, 'mileage'] = np.nan
     df['mileage'] = np.floor(df['mileage']).astype('Int64')
