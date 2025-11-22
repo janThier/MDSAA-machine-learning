@@ -322,9 +322,7 @@ class GroupMedianImputer(BaseEstimator, TransformerMixin):
         Median of all numeric columns in X.
     """
 
-    def __init__(self, group_cols=None):
-        if group_cols is None:
-            group_cols = ["Brand_te", "model_te"]
+    def __init__(self, group_cols=["Brand", "model"]):
         self.group_cols = group_cols
 
     def fit(self, X, y=None):
@@ -477,6 +475,7 @@ def m_estimate_mean(sum_, prior, count, m=50):
 
 ##########################################################################################################################################################
 
+# TODO remove for final submission because its currently not used anywhere
 def cv_target_encode(train_df, test_df, col, ycol='price', m=50, n_splits=5, random_state=42):
     """
     Leakage-safe KFold target encoding for a single categorical feature.
@@ -543,6 +542,7 @@ def cv_target_encode(train_df, test_df, col, ycol='price', m=50, n_splits=5, ran
 
 ##########################################################################################################################################################
 
+# TODO remove for final submission because its currently not used anywhere
 def print_metrics(y_true, y_pred):
     """
     Utility wrapper for the 3 main regression metrics used throughout the project.
