@@ -443,7 +443,14 @@ class GroupMedianImputer(BaseEstimator, TransformerMixin):
                 X[col] = X[col].fillna(self.global_median_[col])
 
         return X.values
-
+    
+    
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            input_features = getattr(self, "feature_names_in_", None)
+        return np.asarray(input_features, dtype=object)
+    
+    
 ##########################################################################################################################################################
 
 class GroupModeImputer(BaseEstimator, TransformerMixin):
