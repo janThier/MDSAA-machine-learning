@@ -446,6 +446,112 @@ class GroupMedianImputer(BaseEstimator, TransformerMixin):
 
 ##########################################################################################################################################################
 
+class GroupModeImputer(BaseEstimator, TransformerMixin):
+    """
+    Impute missing categorical values hierarchically:
+    1) mode per (group_cols[0], group_cols[1])
+    2) mode per group_cols[0]
+    3) global mode
+    """
+
+    def __init__(self, group_cols=["Brand", "model"], fallback="__MISSING__"):
+        self.group_cols = group_cols
+        self.fallback = fallback
+
+    def _mode(self, series):
+        # deterministic mode: first entry if same score
+        m = series.mode(dropna=True)
+        return m.iloc[0] if not m.empty else self.fallback
+
+    def fit(self, X, y=None):
+        X = pd.DataFrame(X).copy()
+        self.feature_names_in_ = X.columns
+
+        # Level 1: Group mode per (group_cols[0], group_cols[1])
+        if all(c in X.columns for c in self.group_cols):
+            self.modes_ = (
+                X.groupby(self.group_cols)
+                 .agg(lambda s: self._mode(s))
+            )
+        else:
+            self.modes_ = pd.DataFrame()
+
+        # Level 2: First-level group mode per group_cols[0]
+        if self.group_cols and self.group_cols[0] in X.columns:
+            self.first_level_modes_ = (
+                X.groupby(self.group_cols[0])
+                 .agg(lambda s: self._mode(s))
+            )
+        else:
+            self.first_level_modes_ = pd.DataFrame()
+
+        # Level 3: Global mode per column
+        self.global_mode_ = X.apply(self._mode)
+        return self
+
+    def transform(self, X):
+        X = pd.DataFrame(X).copy()
+
+        # Which columns need imputing?
+        cols_to_impute = [
+            c for c in X.columns
+            if c not in self.group_cols and X[c].isna().any()
+        ]
+
+        if not cols_to_impute:
+            return X.values
+
+        # 1) Group-Level Imputation
+        if (
+            self.group_cols
+            and all(c in X.columns for c in self.group_cols)
+            and not self.modes_.empty
+        ):
+            key_df = X[self.group_cols]
+            mode_df = self.modes_.reset_index()
+            joined = key_df.merge(mode_df, on=self.group_cols, how="left")
+
+            for col in cols_to_impute:
+                if col not in self.modes_.columns:
+                    continue
+                mask = X[col].isna() & joined[col].notna()
+                X.loc[mask, col] = joined.loc[mask, col]
+
+        # 2) First-level group imputation
+        if (
+            self.group_cols
+            and self.group_cols[0] in X.columns
+            and not self.first_level_modes_.empty
+        ):
+            g = self.group_cols[0]
+            mode1 = self.first_level_modes_.reset_index()
+
+            joined1 = X[[g]].merge(
+                mode1[[g] + [c for c in cols_to_impute if c in mode1.columns]],
+                on=g,
+                how="left",
+            )
+
+            for col in cols_to_impute:
+                if col not in mode1.columns:
+                    continue
+                mask = X[col].isna() & joined1[col].notna()
+                X.loc[mask, col] = joined1.loc[mask, col]
+
+        # 3) Global mode imputation
+        for col in cols_to_impute:
+            X[col] = X[col].fillna(self.global_mode_.get(col, self.fallback))
+
+        return X.values
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            input_features = getattr(self, "feature_names_in_", None)
+        return np.asarray(input_features, dtype=object)
+
+
+##########################################################################################################################################################
+
 def m_estimate_mean(sum_, prior, count, m=50):
     """
     Posterior mean with M-estimate smoothing.
