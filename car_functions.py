@@ -1,10 +1,8 @@
 """
-Utility functions and custom transformers for the 'Cars 4 You' ML project.
+Data cleaning helpers for the 'Cars 4 You' ML project.
 
 Central place for:
 - Raw data cleaning (clean_car_dataframe)
-- Group-based hierarchical imputation (GroupImputer)
-- mean estimating
 
 Design goals
 ------------
@@ -16,15 +14,11 @@ Design goals
 import numpy as np
 import pandas as pd
 
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.model_selection import KFold
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-
-##########################################################################################################################################################
 
 def clean_car_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Clean raw car data. This function is meant to be the single entry point for turning the raw CSV into a consistent, analysis-ready dataframe. It does:
+    Clean raw car data. This function is meant to be the single entry point
+    for turning the raw CSV into a consistent, analysis-ready dataframe. It does:
     - Type coercion for numeric columns
     - Simple outlier removal via range checks (values outside are set to NaN)
     - Canonicalisation of messy string categories (e.g. 'bmw', 'BM' -> 'BMW')
@@ -55,611 +49,324 @@ def clean_car_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     - Thresholds and ranges (e.g. mpg 5-150) are based on domain knowledge +
       the project EDA and can be adjusted in one place here if needed.
     """
-    
     df = df.copy()
 
     # NUMERICAL COLUMNS:
 
     # column carID (set as index, has no duplicates)
-    df = df.set_index('carID')
+    df = df.set_index("carID")
 
     # column year: 1970 to 2020
-    df['year'] = pd.to_numeric(df['year'], errors='coerce')
-    df.loc[~df['year'].between(1970, 2020), 'year'] = np.nan  # TODO undo to 2024 for best model
-    df['year'] = np.floor(df['year']).astype('Int64')
+    df["year"] = pd.to_numeric(df["year"], errors="coerce")
+    df.loc[~df["year"].between(1970, 2020), "year"] = np.nan  # TODO undo to 2024 for best model
+    df["year"] = np.floor(df["year"]).astype("Int64")
 
-    # column mileage: -58.000 to 323.000
-    df['mileage'] = pd.to_numeric(df['mileage'], errors='coerce')
-    df.loc[df['mileage'] < 0, 'mileage'] = np.nan
-    df['mileage'] = np.floor(df['mileage']).astype('Int64')
+    # column mileage: >= 0
+    df["mileage"] = pd.to_numeric(df["mileage"], errors="coerce")
+    df.loc[df["mileage"] < 0, "mileage"] = np.nan
+    df["mileage"] = np.floor(df["mileage"]).astype("Int64")
 
-    # column tax: -91 to 580
-    df['tax'] = pd.to_numeric(df['tax'], errors='coerce')
-    df.loc[df['tax'] < 0, 'tax'] = np.nan
-    df['tax'] = np.floor(df['tax']).astype('Int64')
+    # column tax: >= 0
+    df["tax"] = pd.to_numeric(df["tax"], errors="coerce")
+    df.loc[df["tax"] < 0, "tax"] = np.nan
+    df["tax"] = np.floor(df["tax"]).astype("Int64")
 
-    # column mpg: -43 to 470
-    df['mpg'] = pd.to_numeric(df['mpg'], errors='coerce')
-    df.loc[~df['mpg'].between(5, 150), 'mpg'] = np.nan
-    df['mpg'] = np.floor(df['mpg']).astype('Int64')
+    # column mpg: realistic range 5–150
+    df["mpg"] = pd.to_numeric(df["mpg"], errors="coerce")
+    df.loc[~df["mpg"].between(5, 150), "mpg"] = np.nan
+    df["mpg"] = np.floor(df["mpg"]).astype("Int64")
 
-    # column engineSize: -0.1 to 6.6
-    df['engineSize'] = pd.to_numeric(df['engineSize'], errors='coerce')
-    df.loc[~df['engineSize'].between(0.6, 9.0), 'engineSize'] = np.nan
-    df['engineSize'] = df['engineSize'].round(1)
+    # column engineSize: realistic range 0.6–9.0
+    df["engineSize"] = pd.to_numeric(df["engineSize"], errors="coerce")
+    df.loc[~df["engineSize"].between(0.6, 9.0), "engineSize"] = np.nan
+    df["engineSize"] = df["engineSize"].round(1)
 
-    # column paintQuality%: 1.6 to 125
+    # column paintQuality%: 5–100
     # rename once here so the rest of the code can consistently use `paintQuality`
-    df = df.rename(columns={'paintQuality%': 'paintQuality'})
-    df['paintQuality'] = pd.to_numeric(df['paintQuality'], errors='coerce')
-    df.loc[~df['paintQuality'].between(5, 100), 'paintQuality'] = np.nan  # TODO undo to (70,100) for best model
-    df['paintQuality'] = np.floor(df['paintQuality']).astype('Int64')
+    df = df.rename(columns={"paintQuality%": "paintQuality"})
+    df["paintQuality"] = pd.to_numeric(df["paintQuality"], errors="coerce")
+    df.loc[~df["paintQuality"].between(5, 100), "paintQuality"] = np.nan  # TODO adjust for best model
+    df["paintQuality"] = np.floor(df["paintQuality"]).astype("Int64")
 
-    # column previousOwners: -2.3 to 6.2
-    df['previousOwners'] = pd.to_numeric(df['previousOwners'], errors='coerce')
-    df.loc[df['previousOwners'] < 0, 'previousOwners'] = np.nan
-    df['previousOwners'] = np.floor(df['previousOwners']).astype('Int64')
+    # column previousOwners: >= 0
+    df["previousOwners"] = pd.to_numeric(df["previousOwners"], errors="coerce")
+    df.loc[df["previousOwners"] < 0, "previousOwners"] = np.nan
+    df["previousOwners"] = np.floor(df["previousOwners"]).astype("Int64")
 
-    # column hasDamage (0/nan -> we cannot say that nan means damaged so this feature will be ignored, convert to Int)
-    df['hasDamage'] = pd.to_numeric(df['hasDamage'], errors='coerce').astype('Int64')
-
+    # column hasDamage (0/NaN)
+    # we cannot safely assume NaN means damaged, so this feature may be ignored later.
+    df["hasDamage"] = pd.to_numeric(df["hasDamage"], errors="coerce").astype("Int64")
 
     # CATEGORICAL COLUMNS:
     #   the idea is always:
     #   - normalise case / whitespace
     #   - map any known typo/variant into a canonical label using a reverse dict
 
-    # column brand: map all incorrect spellings to the right brand
+    # column Brand: map all incorrect spellings to the right brand
     brand_map = {
-        'VW': ['VW', 'V', 'W', 'vw', 'v', 'w'],
-        'Toyota': ['Toyota', 'TOYOTA', 'Toyot', 'toyota', 'oyota', 'TOYOT', 'OYOTA'],
-        'Audi': ['Audi', 'AUDI', 'A', 'udi', 'Aud', 'audi', 'AUD', 'UDI'],
-        'Ford': ['Ford', 'FORD', 'For', 'ord', 'for', 'ORD', 'or', 'FOR'],
-        'BMW': ['BMW', 'bmw', 'MW', 'BM', 'mw'],
-        'Skoda': ['Skoda', 'SKODA', 'Skod', 'koda', 'SKOD', 'kod', 'skoda', 'skod', 'KODA'],
-        'Opel': ['Opel', 'OPEL', 'Ope', 'opel', 'OPE', 'pel', 'pe', 'PEL', 'ope'],
-        'Mercedes': ['Mercedes', 'MERCEDES', 'mercedes', 'Mercede', 'ercedes',
-                     'ERCEDES', 'MERCEDE', 'ercede', 'mercede'],
-        'Hyundai': ['Hyundai', 'HYUNDAI', 'hyundai', 'Hyunda', 'yundai', 'yunda',
-                    'HYUNDA', 'hyunda', 'yundai', 'yunda']
+        "VW": ["VW", "V", "W", "vw", "v", "w"],
+        "Toyota": ["Toyota", "TOYOTA", "Toyot", "toyota", "oyota", "TOYOT", "OYOTA"],
+        "Audi": ["Audi", "AUDI", "A", "udi", "Aud", "audi", "AUD", "UDI"],
+        "Ford": ["Ford", "FORD", "For", "ord", "for", "ORD", "or", "FOR"],
+        "BMW": ["BMW", "bmw", "MW", "BM", "mw"],
+        "Skoda": ["Skoda", "SKODA", "Skod", "koda", "SKOD", "kod", "skoda", "skod", "KODA"],
+        "Opel": ["Opel", "OPEL", "Ope", "opel", "OPE", "pel", "pe", "PEL", "ope"],
+        "Mercedes": [
+            "Mercedes",
+            "MERCEDES",
+            "mercedes",
+            "Mercede",
+            "ercedes",
+            "ERCEDES",
+            "MERCEDE",
+            "ercede",
+            "mercede",
+        ],
+        "Hyundai": [
+            "Hyundai",
+            "HYUNDAI",
+            "hyundai",
+            "Hyunda",
+            "yundai",
+            "yunda",
+            "HYUNDA",
+            "hyunda",
+            "yundai",
+            "yunda",
+        ],
     }
     reverse_brand = {v.lower(): k for k, vals in brand_map.items() for v in vals}
-    df['Brand'] = df['Brand'].astype(str).str.strip().str.lower().map(reverse_brand)
-    df['Brand'] = df['Brand'].replace({None: np.nan})
-
+    df["Brand"] = df["Brand"].astype(str).str.strip().str.lower().map(reverse_brand)
+    df["Brand"] = df["Brand"].replace({None: np.nan})
 
     # column model: map all incorrect spellings to the right model
     # NOTE: this mapping encodes project-specific model names.
     model_map = {
         # VW
-        'golf': ['golf', 'gol', 'golf s', 'golf sv'],
-        'passat': ['passat', 'passa'],
-        'polo': ['polo', 'pol'],
-        'tiguan': ['tiguan', 'tigua', 'tiguan allspace', 'tiguan allspac'],
-        'touran': ['touran', 'toura'],
-        'up': ['up', 'u'],
-        'sharan': ['sharan', 'shara'],
-        'scirocco': ['scirocco', 'sciroc'],
-        'amarok': ['amarok', 'amaro'],
-        'arteon': ['arteon', 'arteo'],
-        'beetle': ['beetle', 'beetl'],
-
+        "golf": ["golf", "gol", "golf s", "golf sv"],
+        "passat": ["passat", "passa"],
+        "polo": ["polo", "pol"],
+        "tiguan": ["tiguan", "tigua", "tiguan allspace", "tiguan allspac"],
+        "touran": ["touran", "toura"],
+        "up": ["up", "u"],
+        "sharan": ["sharan", "shara"],
+        "scirocco": ["scirocco", "sciroc"],
+        "amarok": ["amarok", "amaro"],
+        "arteon": ["arteon", "arteo"],
+        "beetle": ["beetle", "beetl"],
         # Toyota
-        'yaris': ['yaris', 'yari'],
-        'corolla': ['corolla', 'corol', 'coroll'],
-        'aygo': ['aygo', 'ayg'],
-        'rav4': ['rav4', 'rav', 'rav-4'],
-        'auris': ['auris', 'auri'],
-        'avensis': ['avensis', 'avens'],
-        'c-hr': ['c-hr', 'chr', 'c-h'],
-        'verso': ['verso', 'verso-s'],
-        'hilux': ['hilux', 'hilu'],
-        'land cruiser': ['land cruiser', 'land cruise'],
-
+        "yaris": ["yaris", "yari"],
+        "corolla": ["corolla", "corol", "coroll"],
+        "aygo": ["aygo", "ayg"],
+        "rav4": ["rav4", "rav", "rav-4"],
+        "auris": ["auris", "auri"],
+        "avensis": ["avensis", "avens"],
+        "c-hr": ["c-hr", "chr", "c-h"],
+        "verso": ["verso", "verso-s"],
+        "hilux": ["hilux", "hilu"],
+        "land cruiser": ["land cruiser", "land cruise"],
         # Audi
-        'a1': ['a1', 'a 1'],
-        'a3': ['a3', 'a 3'],
-        'a4': ['a4', 'a 4'],
-        'a5': ['a5', 'a 5'],
-        'a6': ['a6', 'a 6'],
-        'a7': ['a7', 'a 7'],
-        'a8': ['a8', 'a 8'],
-        'q2': ['q2'],
-        'q3': ['q3', 'q 3'],
-        'q5': ['q5', 'q 5'],
-        'q7': ['q7', 'q 7'],
-        'q8': ['q8'],
-        'tt': ['tt'],
-        'r8': ['r8', 'r 8'],
-
+        "a1": ["a1", "a 1"],
+        "a3": ["a3", "a 3"],
+        "a4": ["a4", "a 4"],
+        "a5": ["a5", "a 5"],
+        "a6": ["a6", "a 6"],
+        "a7": ["a7", "a 7"],
+        "a8": ["a8", "a 8"],
+        "q2": ["q2"],
+        "q3": ["q3", "q 3"],
+        "q5": ["q5", "q 5"],
+        "q7": ["q7", "q 7"],
+        "q8": ["q8"],
+        "tt": ["tt"],
+        "r8": ["r8", "r 8"],
         # Ford
-        'fiesta': ['fiesta', 'fiest'],
-        'focus': ['focus', 'focu'],
-        'mondeo': ['mondeo', 'monde'],
-        'kuga': ['kuga', 'kug'],
-        'ecosport': ['ecosport', 'eco sport', 'ecospor'],
-        'puma': ['puma', 'pum'],
-        'edge': ['edge', 'edg'],
-        's-max': ['s-max', 's-ma', 'smax'],
-        'c-max': ['c-max', 'c-ma', 'cmax'],
-        'b-max': ['b-max', 'b-ma', 'bmax'],
-        'ka+': ['ka+', 'ka', 'streetka'],
-
+        "fiesta": ["fiesta", "fiest"],
+        "focus": ["focus", "focu"],
+        "mondeo": ["mondeo", "monde"],
+        "kuga": ["kuga", "kug"],
+        "ecosport": ["ecosport", "eco sport", "ecospor"],
+        "puma": ["puma", "pum"],
+        "edge": ["edge", "edg"],
+        "s-max": ["s-max", "s-ma", "smax"],
+        "c-max": ["c-max", "c-ma", "cmax"],
+        "b-max": ["b-max", "b-ma", "bmax"],
+        "ka+": ["ka+", "ka", "streetka"],
         # BMW
-        '1 series': ['1 series', '1 serie', '1 ser', '1series'],
-        '2 series': ['2 series', '2 serie', '2series'],
-        '3 series': ['3 series', '3 serie', '3series'],
-        '4 series': ['4 series', '4 serie', '4series'],
-        '5 series': ['5 series', '5 serie', '5series'],
-        '6 series': ['6 series', '6 serie', '6series'],
-        '7 series': ['7 series', '7 serie', '7series'],
-        '8 series': ['8 series', '8 serie', '8series'],
-        'x1': ['x1'], 'x2': ['x2'], 'x3': ['x3'], 'x4': ['x4'], 'x5': ['x5'], 'x6': ['x6'], 'x7': ['x7'],
-        'z3': ['z3'], 'z4': ['z4'], 'm3': ['m3'], 'm4': ['m4'], 'm5': ['m5'], 'm6': ['m6'],
-
+        "1 series": ["1 series", "1 serie", "1 ser", "1series"],
+        "2 series": ["2 series", "2 serie", "2series"],
+        "3 series": ["3 series", "3 serie", "3series"],
+        "4 series": ["4 series", "4 serie", "4series"],
+        "5 series": ["5 series", "5 serie", "5series"],
+        "6 series": ["6 series", "6 serie", "6series"],
+        "7 series": ["7 series", "7 serie", "7series"],
+        "8 series": ["8 series", "8 serie", "8series"],
+        "x1": ["x1"],
+        "x2": ["x2"],
+        "x3": ["x3"],
+        "x4": ["x4"],
+        "x5": ["x5"],
+        "x6": ["x6"],
+        "x7": ["x7"],
+        "z3": ["z3"],
+        "z4": ["z4"],
+        "m3": ["m3"],
+        "m4": ["m4"],
+        "m5": ["m5"],
+        "m6": ["m6"],
         # Skoda
-        'fabia': ['fabia', 'fabi'], 'octavia': ['octavia', 'octavi', 'octa'],
-        'superb': ['superb', 'super'], 'scala': ['scala', 'scal'],
-        'karoq': ['karoq', 'karo'], 'kodiaq': ['kodiaq', 'kodia', 'kodi'],
-        'kamiq': ['kamiq', 'kami'], 'yeti': ['yeti', 'yeti outdoor', 'yeti outdoo'],
-
+        "fabia": ["fabia", "fabi"],
+        "octavia": ["octavia", "octavi", "octa"],
+        "superb": ["superb", "super"],
+        "scala": ["scala", "scal"],
+        "karoq": ["karoq", "karo"],
+        "kodiaq": ["kodiaq", "kodia", "kodi"],
+        "kamiq": ["kamiq", "kami"],
+        "yeti": ["yeti", "yeti outdoor", "yeti outdoo"],
         # Opel
-        'astra': ['astra', 'astr'], 'corsa': ['corsa', 'cors'], 'insignia': ['insignia', 'insigni'],
-        'mokka': ['mokka', 'mokk', 'mokka x', 'mokkax'], 'zafira': ['zafira', 'zafir'], 'meriva': ['meriva', 'meriv'],
-        'adam': ['adam', 'ad'], 'vectra': ['vectra', 'vectr'], 'antara': ['antara', 'anta'],
-        'combo life': ['combo life', 'combo lif'], 'grandland x': ['grandland x', 'grandland'], 'crossland x': ['crossland x', 'crossland'],
-
+        "astra": ["astra", "astr"],
+        "corsa": ["corsa", "cors"],
+        "insignia": ["insignia", "insigni"],
+        "mokka": ["mokka", "mokk", "mokka x", "mokkax"],
+        "zafira": ["zafira", "zafir"],
+        "meriva": ["meriva", "meriv"],
+        "adam": ["adam", "ad"],
+        "vectra": ["vectra", "vectr"],
+        "antara": ["antara", "anta"],
+        "combo life": ["combo life", "combo lif"],
+        "grandland x": ["grandland x", "grandland"],
+        "crossland x": ["crossland x", "crossland"],
         # Mercedes
-        'a class': ['a class', 'a clas', 'a-class'], 'b class': ['b class', 'b clas', 'b-class'],
-        'c class': ['c class', 'c clas', 'c-class'], 'e class': ['e class', 'e clas', 'e-class'],
-        's class': ['s class', 's clas', 's-class'], 'glc class': ['glc class', 'glc clas'],
-        'gle class': ['gle class', 'gle clas'], 'gla class': ['gla class', 'gla clas'],
-        'cls class': ['cls class', 'cls clas'], 'glb class': ['glb class'], 'gls class': ['gls class'],
-        'm class': ['m class'], 'sl class': ['sl class'], 'cl class': ['cl class'], 'v class': ['v class'], 'x-class': ['x-class'], 'g class': ['g class'],
-
+        "a class": ["a class", "a clas", "a-class"],
+        "b class": ["b class", "b clas", "b-class"],
+        "c class": ["c class", "c clas", "c-class"],
+        "e class": ["e class", "e clas", "e-class"],
+        "s class": ["s class", "s clas", "s-class"],
+        "glc class": ["glc class", "glc clas"],
+        "gle class": ["gle class", "gle clas"],
+        "gla class": ["gla class", "gla clas"],
+        "cls class": ["cls class", "cls clas"],
+        "glb class": ["glb class"],
+        "gls class": ["gls class"],
+        "m class": ["m class"],
+        "sl class": ["sl class"],
+        "cl class": ["cl class"],
+        "v class": ["v class"],
+        "x-class": ["x-class"],
+        "g class": ["g class"],
         # Hyundai
-        'i10': ['i10', 'i 10'], 'i20': ['i20', 'i 20'], 'i30': ['i30', 'i 30'], 'i40': ['i40', 'i 40'],
-        'ioniq': ['ioniq', 'ioni'], 'ix20': ['ix20', 'ix 20'], 'ix35': ['ix35', 'ix 35'],
-        'kona': ['kona', 'kon'], 'tucson': ['tucson', 'tucso'], 'santa fe': ['santa fe', 'santa f']
+        "i10": ["i10", "i 10"],
+        "i20": ["i20", "i 20"],
+        "i30": ["i30", "i 30"],
+        "i40": ["i40", "i 40"],
+        "ioniq": ["ioniq", "ioni"],
+        "ix20": ["ix20", "ix 20"],
+        "ix35": ["ix35", "ix 35"],
+        "kona": ["kona", "kon"],
+        "tucson": ["tucson", "tucso"],
+        "santa fe": ["santa fe", "santa f"],
     }
     reverse_model = {v.lower(): k for k, vals in model_map.items() for v in vals}
-    df['model'] = df['model'].astype(str).str.strip().str.lower().map(reverse_model)
-    df['model'] = df['model'].replace({None: np.nan})
+    df["model"] = df["model"].astype(str).str.strip().str.lower().map(reverse_model)
+    df["model"] = df["model"].replace({None: np.nan})
 
     # column transmission: map all incorrect spellings to the right transmission type
     trans_map = {
-        'Manual': ['manual', 'manua', 'anual', 'emi-auto', 'MANUAL'],
-        'Semi-Auto': ['semi-auto', 'semi-aut', 'semi-aut', 'semi-aut', 'emi-auto'],
-        'Automatic': ['automatic', 'automati', 'AUTOMATIC', 'utomatic', 'Automati'],
-        'Unknown': ['unknown', 'unknow', 'nknown'],
-        'Other': ['Other']
+        "Manual": ["manual", "manua", "anual", "emi-auto", "MANUAL"],
+        "Semi-Auto": ["semi-auto", "semi-aut", "semi-aut", "semi-aut", "emi-auto"],
+        "Automatic": ["automatic", "automati", "AUTOMATIC", "utomatic", "Automati"],
+        "Unknown": ["unknown", "unknow", "nknown"],
+        "Other": ["Other"],
     }
     reverse_trans = {v.lower(): k for k, vals in trans_map.items() for v in vals}
-    df['transmission'] = df['transmission'].astype(str).str.strip().str.lower().map(reverse_trans)
-    df['transmission'] = df['transmission'].replace({None: np.nan})
+    df["transmission"] = df["transmission"].astype(str).str.strip().str.lower().map(reverse_trans)
+    df["transmission"] = df["transmission"].replace({None: np.nan})
 
     # column fuelType: map all incorrect spellings to the right fuelType
     fuel_map = {
-        'Petrol': ['petrol', 'petro', 'etrol', 'etro'],
-        'Diesel': ['diesel', 'dies', 'iesel', 'diese', 'iese', 'diesele'],
-        'Hybrid': ['hybrid', 'ybri', 'hybri', 'ybrid', 'hybridd'],
-        'Electric': ['electric'],
-        'Other': ['other', 'ther', 'othe']
+        "Petrol": ["petrol", "petro", "etrol", "etro"],
+        "Diesel": ["diesel", "dies", "iesel", "diese", "iese", "diesele"],
+        "Hybrid": ["hybrid", "ybri", "hybri", "ybrid", "hybridd"],
+        "Electric": ["electric"],
+        "Other": ["other", "ther", "othe"],
     }
     reverse_fuel = {v.lower(): k for k, vals in fuel_map.items() for v in vals}
-    df['fuelType'] = df['fuelType'].astype(str).str.strip().str.lower().map(reverse_fuel)
-    df['fuelType'] = df['fuelType'].replace({None: np.nan})
+    df["fuelType"] = df["fuelType"].astype(str).str.strip().str.lower().map(reverse_fuel)
+    df["fuelType"] = df["fuelType"].replace({None: np.nan})
 
     # build model -> brand mapping: there are rows where `model` is filled but `Brand` is not.
     # We can back-fill brand from model via this mapping.
     model_to_brand = {}
     for brand, models in {
-        'VW': ['golf', 'passat', 'polo', 'tiguan', 'touran', 'up', 'sharan', 'scirocco', 'amarok', 'arteon', 'beetle'],
-        'Toyota': ['yaris', 'corolla', 'aygo', 'rav4', 'auris', 'avensis', 'c-hr', 'verso', 'hilux', 'land cruiser'],
-        'Audi': ['a1', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'q2', 'q3', 'q5', 'q7', 'q8', 'tt', 'r8'],
-        'Ford': ['fiesta', 'focus', 'mondeo', 'kuga', 'ecosport', 'puma', 'edge', 's-max', 'c-max', 'b-max', 'ka+'],
-        'BMW': ['1 series', '2 series', '3 series', '4 series', '5 series', '6 series', '7 series', '8 series',
-                'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'z3', 'z4', 'm3', 'm4', 'm5', 'm6'],
-        'Skoda': ['fabia', 'octavia', 'superb', 'scala', 'karoq', 'kodiaq', 'kamiq', 'yeti'],
-        'Opel': ['astra', 'corsa', 'insignia', 'mokka', 'zafira', 'meriva', 'adam', 'vectra', 'antara',
-                 'combo life', 'grandland x', 'crossland x'],
-        'Mercedes': ['a class', 'b class', 'c class', 'e class', 's class', 'glc class', 'gle class', 'gla class',
-                     'cls class', 'glb class', 'gls class', 'm class', 'sl class', 'cl class', 'v class', 'x-class', 'g class'],
-        'Hyundai': ['i10', 'i20', 'i30', 'i40', 'ioniq', 'ix20', 'ix35', 'kona', 'tucson', 'santa fe']
+        "VW": ["golf", "passat", "polo", "tiguan", "touran", "up", "sharan", "scirocco", "amarok", "arteon", "beetle"],
+        "Toyota": ["yaris", "corolla", "aygo", "rav4", "auris", "avensis", "c-hr", "verso", "hilux", "land cruiser"],
+        "Audi": ["a1", "a3", "a4", "a5", "a6", "a7", "a8", "q2", "q3", "q5", "q7", "q8", "tt", "r8"],
+        "Ford": ["fiesta", "focus", "mondeo", "kuga", "ecosport", "puma", "edge", "s-max", "c-max", "b-max", "ka+"],
+        "BMW": [
+            "1 series",
+            "2 series",
+            "3 series",
+            "4 series",
+            "5 series",
+            "6 series",
+            "7 series",
+            "8 series",
+            "x1",
+            "x2",
+            "x3",
+            "x4",
+            "x5",
+            "x6",
+            "x7",
+            "z3",
+            "z4",
+            "m3",
+            "m4",
+            "m5",
+            "m6",
+        ],
+        "Skoda": ["fabia", "octavia", "superb", "scala", "karoq", "kodiaq", "kamiq", "yeti"],
+        "Opel": [
+            "astra",
+            "corsa",
+            "insignia",
+            "mokka",
+            "zafira",
+            "meriva",
+            "adam",
+            "vectra",
+            "antara",
+            "combo life",
+            "grandland x",
+            "crossland x",
+        ],
+        "Mercedes": [
+            "a class",
+            "b class",
+            "c class",
+            "e class",
+            "s class",
+            "glc class",
+            "gle class",
+            "gla class",
+            "cls class",
+            "glb class",
+            "gls class",
+            "m class",
+            "sl class",
+            "cl class",
+            "v class",
+            "x-class",
+            "g class",
+        ],
+        "Hyundai": ["i10", "i20", "i30", "i40", "ioniq", "ix20", "ix35", "kona", "tucson", "santa fe"],
     }.items():
         for m in models:
             model_to_brand[m] = brand
 
     # fill missing Brand from model where possible
-    df.loc[df['Brand'].isna() & df['model'].notna(), 'Brand'] = (
-        df.loc[df['Brand'].isna() & df['model'].notna(), 'model'].map(model_to_brand)
+    df.loc[df["Brand"].isna() & df["model"].notna(), "Brand"] = (
+        df.loc[df["Brand"].isna() & df["model"].notna(), "model"].map(model_to_brand)
     )
 
     return df
-
-##########################################################################################################################################################
-
-class GroupImputer(BaseEstimator, TransformerMixin):
-    """
-    Hierarchical imputer for numeric + categorical features.
-
-    Idea:
-    -----
-    - For each row with a missing value, try to fill it using statistics from
-      "similar" rows first, and only fall back to global statistics if needed.
-
-    Hierarchy for numeric columns (num_cols):
-        1) median per (group_cols[0], group_cols[1])     e.g. (Brand, model)
-        2) median per group_cols[0]                      e.g. Brand
-        3) global median across all rows
-
-    Hierarchy for categorical columns (cat_cols):
-        1) mode per (group_cols[0], group_cols[1])
-        2) mode per group_cols[0]
-        3) global mode across all rows
-
-    Notes:
-    ------
-    - `group_cols` are used only to define groups; they themselves are not imputed.
-    - `num_cols` and `cat_cols` can be given explicitly (lists of column names).
-      If None, they are inferred from the dtypes in `fit`.
-    - The class is sklearn-compatible:
-        * __init__ does NOT modify parameters (important for `clone`)
-        * `fit` computes statistics
-        * `transform` applies the imputation
-    """
-
-    def __init__(self,
-                 group_cols=("Brand", "model"),
-                 num_cols=None,
-                 cat_cols=None,
-                 fallback="__MISSING__"):
-        """
-        Parameters
-        ----------
-        group_cols : tuple/list of str
-            Column names that define the hierarchy (e.g. ("Brand", "model")).
-
-        num_cols : list[str] or None
-            Numeric columns to impute. If None, inferred from dtypes in fit().
-
-        cat_cols : list[str] or None
-            Categorical columns to impute. If None, inferred as "the rest".
-
-        fallback : str
-            Value used if we cannot compute any mode for a categorical variable.
-        """
-        # IMPORTANT: do not modify params here (no list(...) etc).
-        # Sklearn's clone() relies on these being exactly what the user passed.
-        self.group_cols = group_cols
-        self.num_cols = num_cols
-        self.cat_cols = cat_cols
-        self.fallback = fallback
-
-    # ---------- helpers ----------
-
-    def _mode(self, s: pd.Series):
-        """
-        Deterministic mode helper:
-
-        - Compute the most frequent non-null value.
-        - If multiple values tie, Series.mode() returns them in order, we take .iloc[0].
-        - If there is no valid mode (all NaN), return fallback token.
-        """
-        m = s.mode(dropna=True)
-        if not m.empty:
-            return m.iloc[0]
-        return self.fallback
-
-    def _get_group_series(self, df: pd.DataFrame, col_name: str) -> pd.Series:
-        """
-        Get the FIRST physical column with the given label from df.
-
-        Reason:
-        -------
-        - In some workflows, df.columns can contain duplicate labels (e.g. "Brand"
-          appearing twice after some operations).
-        - df["Brand"] would then raise "Grouper for 'Brand' not 1-dimensional".
-        - By using np.where(df.columns == col_name)[0] we get *positions* and we
-          explicitly pick the first one.
-
-        Raises:
-        -------
-        ValueError if no column with that name exists.
-        """
-        matches = np.where(df.columns == col_name)[0]
-        if len(matches) == 0:
-            raise ValueError(f"GroupImputer: grouping column '{col_name}' not found in data.")
-        return df.iloc[:, matches[0]]
-
-    # ---------- fit ----------
-
-    def fit(self, X, y=None):
-        """
-        Learn the group-level and global statistics from the training data.
-
-        Steps:
-        ------
-        1) Convert X to DataFrame and remember the original column order.
-        2) Resolve which columns are numeric/categorical to impute.
-        3) Build group keys (g0, g1) from group_cols (e.g. Brand, model).
-        4) For numeric columns:
-            - compute global medians
-            - medians per g0 (e.g. per brand)
-            - medians per (g0, g1) (e.g. per brand+model)
-        5) For categorical columns:
-            - global modes
-            - modes per g0
-            - modes per (g0, g1)
-        """
-        # Ensure we are working with a DataFrame
-        df = pd.DataFrame(X).copy()
-
-        # Remember the column order we saw during fit.
-        # We will use this to align transform() inputs.
-        self.feature_names_in_ = df.columns.to_list()
-
-        # group_cols must contain at least one column name
-        if self.group_cols is None or len(self.group_cols) == 0:
-            raise ValueError("GroupImputer: at least one group column must be specified.")
-
-        # Internal copy: always a simple list of group column names
-        self.group_cols_ = list(self.group_cols)
-
-        # Determine numeric columns to impute (internal num_cols_)
-        if self.num_cols is None:
-            # If not specified: all numeric columns except the group columns
-            num_cols_all = df.select_dtypes(include="number").columns.tolist()
-            self.num_cols_ = [c for c in num_cols_all if c not in self.group_cols_]
-        else:
-            # If specified: keep only those that exist in df
-            self.num_cols_ = [c for c in self.num_cols if c in df.columns]
-
-        # Determine categorical columns to impute (internal cat_cols_)
-        if self.cat_cols is None:
-            # If not specified: all non-group, non-numeric columns
-            self.cat_cols_ = [
-                c for c in df.columns
-                if c not in self.group_cols_ + self.num_cols_
-            ]
-        else:
-            # If specified: keep only those that exist in df
-            self.cat_cols_ = [c for c in self.cat_cols if c in df.columns]
-
-        # Build group key series based on the current df
-        # g0 = first grouping column (e.g. Brand)
-        g0 = self._get_group_series(df, self.group_cols_[0])
-
-        # g1 = second grouping column (e.g. model), optional
-        g1 = None
-        if len(self.group_cols_) > 1:
-            g1 = self._get_group_series(df, self.group_cols_[1])
-
-        # ---- numeric statistics ----
-        if self.num_cols_:
-            # Extract the numeric columns to impute
-            num_df = df[self.num_cols_].copy()
-
-            # 3) Global median per numeric column (fallback for any group with no stats)
-            self.num_global_ = num_df.median(numeric_only=True)
-
-            # 2) Median per first-level group (g0, e.g. Brand)
-            num_first = num_df.copy()
-            num_first["_g0"] = g0.values  # temporary group key column
-            self.num_first_ = (
-                num_first
-                .groupby("_g0", dropna=True)  # group by Brand (or group_cols_[0])
-                .median(numeric_only=True)
-            )
-
-            # 1) Median per pair (g0, g1), e.g. (Brand, model)
-            if g1 is not None:
-                num_pair = num_df.copy()
-                num_pair["_g0"] = g0.values
-                num_pair["_g1"] = g1.values
-                self.num_pair_ = (
-                    num_pair
-                    .groupby(["_g0", "_g1"], dropna=True)  # group by (Brand, model)
-                    .median(numeric_only=True)
-                )
-            else:
-                # If there is no second grouping column, we keep an empty DataFrame
-                self.num_pair_ = pd.DataFrame()
-        else:
-            # If there are no numeric columns to impute, store empty stats
-            self.num_global_ = pd.Series(dtype="float64")
-            self.num_first_ = pd.DataFrame()
-            self.num_pair_ = pd.DataFrame()
-
-        # ---- categorical statistics ----
-        if self.cat_cols_:
-            # Extract the categorical columns to impute
-            cat_df = df[self.cat_cols_].copy()
-
-            # 3) Global mode per categorical column
-            self.cat_global_ = pd.Series(
-                {c: self._mode(cat_df[c]) for c in self.cat_cols_},
-                dtype="object"
-            )
-
-            # 2) Mode per first-level group (g0)
-            cat_first = cat_df.copy()
-            cat_first["_g0"] = g0.values
-            self.cat_first_ = (
-                cat_first
-                .groupby("_g0", dropna=True)
-                .agg(lambda s: self._mode(s))  # apply deterministic mode per column
-            )
-
-            # 1) Mode per pair (g0, g1)
-            if g1 is not None:
-                cat_pair = cat_df.copy()
-                cat_pair["_g0"] = g0.values
-                cat_pair["_g1"] = g1.values
-                self.cat_pair_ = (
-                    cat_pair
-                    .groupby(["_g0", "_g1"], dropna=True)
-                    .agg(lambda s: self._mode(s))
-                )
-            else:
-                self.cat_pair_ = pd.DataFrame()
-        else:
-            # No categorical columns to impute
-            self.cat_global_ = pd.Series(dtype="object")
-            self.cat_first_ = pd.DataFrame()
-            self.cat_pair_ = pd.DataFrame()
-
-        return self
-
-    # ---------- transform ----------
-
-    def transform(self, X):
-        """
-        Apply hierarchical imputation to new data.
-
-        Steps:
-        ------
-        1) Convert input to DataFrame and align columns to what fit() saw.
-        2) Rebuild group keys g0, g1 from the current data.
-        3) For each numeric column with missing values:
-            - try pair-level median (g0, g1)
-            - then brand-level median (g0)
-            - then global median
-        4) Same for categorical columns with modes.
-        """
-        # Ensure DataFrame and align with training column order
-        df = pd.DataFrame(X).copy()
-        df = df.reindex(columns=self.feature_names_in_)
-
-        # Build group key series again from current df
-        g0 = self._get_group_series(df, self.group_cols_[0])
-        g1 = None
-        if len(self.group_cols_) > 1:
-            g1 = self._get_group_series(df, self.group_cols_[1])
-
-        # ---- numeric imputation ----
-        if hasattr(self, "num_cols_") and self.num_cols_:
-            # Ensure numeric dtype for numeric columns (to safely assign medians)
-            df[self.num_cols_] = df[self.num_cols_].astype("float64")
-
-            # Only consider columns that actually have missing values
-            to_impute_num = [c for c in self.num_cols_ if df[c].isna().any()]
-
-            if to_impute_num:
-                # 1) pair-level imputation: per (g0, g1)
-                if g1 is not None and not self.num_pair_.empty:
-                    # Build a small DF with group keys for each row
-                    key_df = pd.DataFrame({"_g0": g0.values, "_g1": g1.values})
-                    # Turn the multi-index num_pair_ into a DF with _g0,_g1 as columns
-                    med_df = self.num_pair_.reset_index()
-                    # Left-join: each row gets the medians for its (g0,g1) if available
-                    joined = key_df.merge(med_df, on=["_g0", "_g1"], how="left")
-
-                    for col in to_impute_num:
-                        if col not in self.num_pair_.columns:
-                            # Column not part of pair-level stats, skip
-                            continue
-                        # Mask: rows where the original value is NaN but we have a pair-level median
-                        mask = df[col].isna() & joined[col].notna()
-                        # Fill with the corresponding pair-level median
-                        df.loc[mask, col] = joined.loc[mask, col]
-
-                # 2) first-level imputation: per g0 only
-                if not self.num_first_.empty:
-                    key1 = pd.DataFrame({"_g0": g0.values})
-                    med1 = self.num_first_.reset_index()
-                    joined1 = key1.merge(med1, on="_g0", how="left")
-
-                    for col in to_impute_num:
-                        if col not in self.num_first_.columns:
-                            continue
-                        # Now fill remaining NaNs using brand-level medians
-                        mask = df[col].isna() & joined1[col].notna()
-                        df.loc[mask, col] = joined1[col]
-
-                # 3) global median fallback
-                for col in to_impute_num:
-                    if col in self.num_global_:
-                        df[col] = df[col].fillna(self.num_global_[col])
-
-        # ---- categorical imputation ----
-        if hasattr(self, "cat_cols_") and self.cat_cols_:
-            # Only consider columns that actually have missing values
-            to_impute_cat = [c for c in self.cat_cols_ if df[c].isna().any()]
-
-            if to_impute_cat:
-                # 1) pair-level imputation: per (g0, g1)
-                if g1 is not None and not self.cat_pair_.empty:
-                    key_df = pd.DataFrame({"_g0": g0.values, "_g1": g1.values})
-                    mode_df = self.cat_pair_.reset_index()
-                    joined = key_df.merge(mode_df, on=["_g0", "_g1"], how="left")
-
-                    for col in to_impute_cat:
-                        if col not in self.cat_pair_.columns:
-                            continue
-                        mask = df[col].isna() & joined[col].notna()
-                        df.loc[mask, col] = joined[col]
-
-                # 2) first-level imputation: per g0 only
-                if not self.cat_first_.empty:
-                    key1 = pd.DataFrame({"_g0": g0.values})
-                    mode1 = self.cat_first_.reset_index()
-                    joined1 = key1.merge(mode1, on="_g0", how="left")
-
-                    for col in to_impute_cat:
-                        if col not in self.cat_first_.columns:
-                            continue
-                        mask = df[col].isna() & joined1[col].notna()
-                        df.loc[mask, col] = joined1[col]
-
-                # 3) global mode fallback (or fallback token)
-                for col in to_impute_cat:
-                    if col in self.cat_global_:
-                        df[col] = df[col].fillna(self.cat_global_[col])
-                    else:
-                        df[col] = df[col].fillna(self.fallback)
-
-        # Return a DataFrame (sklearn will accept this, or you can call .values() if needed)
-        return df
-
-    def get_feature_names_out(self, input_features=None):
-        """
-        Make the transformer compatible with sklearn's feature-name getting.
-
-        - If called without arguments, return the original feature names seen in fit().
-        - This is mostly useful when GroupImputer is at the top of a Pipeline and
-          later steps want to introspect feature names.
-        """
-        if input_features is None:
-            input_features = getattr(self, "feature_names_in_", None)
-        return np.asarray(input_features, dtype=object)
-
-
-##########################################################################################################################################################
-
-def m_estimate_mean(sum_, prior, count, m=50):
-    """
-    Posterior mean with M-estimate smoothing.
-
-    This function implements the standard M-estimator used to smooth noisy
-    category-wise statistics (e.g. average price per model). Small groups are
-    pulled towards a prior, large groups are closer to their empirical mean.
-
-    Parameters
-    ----------
-    sum_ : float or pd.Series
-        Sum of target values per group.
-    prior : float or pd.Series
-        Prior "pseudo-sum". In this project, we use `global_mean * count`,
-        mirroring the original notebook implementation.
-    count : float or pd.Series
-        Number of observations in the group.
-    m : int, default 50
-        Smoothing strength. Larger `m` means stronger pull towards the prior.
-
-    Returns
-    -------
-    float or pd.Series
-        Smoothed mean estimate.
-    """
-    return (sum_ + m * prior) / (count + m)
