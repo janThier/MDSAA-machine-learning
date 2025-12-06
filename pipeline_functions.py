@@ -242,7 +242,7 @@ class GroupImputer(BaseEstimator, TransformerMixin):
                     .agg(lambda s: self._mode(s))
                 )
             else:
-                self.cat_pair_ = pd.DataFrame()
+                 self.cat_pair_ = pd.DataFrame()
         else:
             # No categorical columns to impute
             self.cat_global_ = pd.Series(dtype="object")
