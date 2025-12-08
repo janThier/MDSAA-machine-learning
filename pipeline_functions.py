@@ -20,64 +20,6 @@ from sklearn.preprocessing import FunctionTransformer
 from sklearn.model_selection import RandomizedSearchCV, KFold
 
 
-
-################################################################################
-######################## Feature Engineering #######################
-################################################################################
-
-# docstring adden TODO
-class CarFeatureEngineer(BaseEstimator, TransformerMixin):
-    def __init__(self, ref_year=None):
-        self.ref_year = ref_year
-
-    def fit(self, X, y=None): # y is necessary because 3 arguments are given in pipeline # TODO figure out why this is the case
-        X_ = X.copy()
-        if self.ref_year is None:
-            self.ref_year_ = X_['year'].max()
-        else:
-            self.ref_year_ = self.ref_year
-        self.brand_median_age_ = (
-            (self.ref_year_ - X_['year'])
-            .groupby(X_['Brand'])
-            .median()
-            .to_dict()
-        )
-        self.model_freq_ = X_['model'].value_counts(normalize=True).to_dict()
-        return self
-
-    def transform(self, X):
-        X = X.copy()
-        
-        # # 1. Base Feature Creation: Car Age - Newer cars usually have higher prices, models prefer linear features
-        age = self.ref_year_ - X['year']
-        X['age'] = age
-
-        # Miles per Year: Normalizes mileage by age (solves multicollinearity between year and mileage)
-        X['miles_per_year'] = X['mileage'] / age.replace({0: np.nan})
-        X['miles_per_year'] = X['miles_per_year'].fillna(X['mileage']) # if age is 0, just use mileage because that's the mileage it has driven so far in that year
-
-        # Interaction Terms: Capture non-linear effects between engine and other numeric features
-        X['age_x_engine'] = X['age'] * X['engineSize']
-        X['mpg_x_engine']  = X['mpg'] * X['engineSize']
-
-        # tax per engine
-        X['tax_per_engine'] = X['tax'] / X['engineSize'].replace({0: np.nan})
-
-        # MPG per engineSize to represent the efficiency
-        X['mpg_per_engine'] = X['mpg'] / X['engineSize'].replace({0: np.nan})
-
-        # 2. Model Frequency: Popular models tend to have stable demand and prices
-        X['model_freq'] = X['model'].map(self.model_freq_).fillna(0.0)
-
-        # 3. Create Interaction Features for anchor (relative positioning within brand/model)
-        X['brand_fuel'] = X['Brand'].astype(str) + "_" + X['fuelType'].astype(str)
-        X['brand_trans'] = X['Brand'].astype(str) + "_" + X['transmission'].astype(str)
-        
-        # 4. Relative Age (within brand): newer/older than brand median year
-        X['age_rel_brand'] = X['age'] - X['Brand'].map(self.brand_median_age_)
-        return X
-
-
 ################################################################################
 ##################### Handle missing values (GroupImputer) #####################
 ################################################################################
@@ -466,6 +408,66 @@ def m_estimate_mean(sum_, prior, count, m=50):
         Smoothed mean estimate.
     """
     return (sum_ + m * prior) / (count + m)
+
+
+################################################################################
+######################## Feature Engineering #######################
+################################################################################
+
+# docstring adden TODO
+class CarFeatureEngineer(BaseEstimator, TransformerMixin):
+    """
+    This class calculates the metrics for the specific X (X = a fold within CV) and computes the engineered features with these metrics.
+    """
+    def __init__(self, ref_year=None):
+        self.ref_year = ref_year
+
+    def fit(self, X, y=None): # y is necessary because 3 arguments are given in pipeline # TODO figure out why this is the case
+        X_ = X.copy()
+        if self.ref_year is None:
+            self.ref_year_ = X_['year'].max()
+        else:
+            self.ref_year_ = self.ref_year
+        self.brand_median_age_ = (
+            (self.ref_year_ - X_['year'])
+            .groupby(X_['Brand'])
+            .median()
+            .to_dict()
+        )
+        self.model_freq_ = X_['model'].value_counts(normalize=True).to_dict()
+        return self
+
+    def transform(self, X):
+        X = X.copy()
+        
+        # # 1. Base Feature Creation: Car Age - Newer cars usually have higher prices, models prefer linear features
+        age = self.ref_year_ - X['year']
+        X['age'] = age
+
+        # Miles per Year: Normalizes mileage by age (solves multicollinearity between year and mileage)
+        X['miles_per_year'] = X['mileage'] / age.replace({0: np.nan})
+        X['miles_per_year'] = X['miles_per_year'].fillna(X['mileage']) # if age is 0, just use mileage because that's the mileage it has driven so far in that year
+
+        # Interaction Terms: Capture non-linear effects between engine and other numeric features
+        X['age_x_engine'] = X['age'] * X['engineSize']
+        X['mpg_x_engine']  = X['mpg'] * X['engineSize']
+
+        # tax per engine
+        X['tax_per_engine'] = X['tax'] / X['engineSize'].replace({0: np.nan}) # Catch Edge Case if engineSize=0 occurs in test set (e.g. for EVs)
+
+        # MPG per engineSize to represent the efficiency
+        X['mpg_per_engine'] = X['mpg'] / X['engineSize'].replace({0: np.nan}) # Catch Edge Case if engineSize=0 occurs in test set (e.g. for EVs)
+
+        # 2. Model Frequency: Popular models tend to have stable demand and prices
+        X['model_freq'] = X['model'].map(self.model_freq_).fillna(0.0)
+
+        # 3. Create Interaction Features for anchor (relative positioning within brand/model)
+        X['brand_fuel'] = X['Brand'].astype(str) + "_" + X['fuelType'].astype(str)
+        X['brand_trans'] = X['Brand'].astype(str) + "_" + X['transmission'].astype(str)
+        
+        # 4. Relative Age (within brand): newer/older than brand median year
+        X['age_rel_brand'] = X['age'] - X['Brand'].map(self.brand_median_age_)
+        return X
 
 
 ################################################################################

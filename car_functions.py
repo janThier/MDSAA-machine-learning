@@ -58,7 +58,7 @@ def clean_car_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     # column year: 1970 to 2020
     df["year"] = pd.to_numeric(df["year"], errors="coerce")
-    df.loc[~df["year"].between(1970, 2020), "year"] = np.nan  # TODO undo to 2024 for best model
+    df.loc[~df["year"].between(1970, 2020), "year"] = np.nan
     df["year"] = np.floor(df["year"]).astype("Int64")
 
     # column mileage: >= 0
@@ -85,7 +85,7 @@ def clean_car_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # rename once here so the rest of the code can consistently use `paintQuality`
     df = df.rename(columns={"paintQuality%": "paintQuality"})
     df["paintQuality"] = pd.to_numeric(df["paintQuality"], errors="coerce")
-    df.loc[~df["paintQuality"].between(5, 100), "paintQuality"] = np.nan  # TODO adjust for best model
+    df.loc[~df["paintQuality"].between(5, 100), "paintQuality"] = np.nan
     df["paintQuality"] = np.floor(df["paintQuality"]).astype("Int64")
 
     # column previousOwners: >= 0
@@ -293,6 +293,9 @@ def clean_car_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     reverse_fuel = {v.lower(): k for k, vals in fuel_map.items() for v in vals}
     df["fuelType"] = df["fuelType"].astype(str).str.strip().str.lower().map(reverse_fuel)
     df["fuelType"] = df["fuelType"].replace({None: np.nan})
+
+    # Drop Electric vehicles due to too few samples which are even logically inconsistent (Ford mondeo is not an electric car)
+    df = df[df["fuelType"] != "Electric"]
 
     # build model -> brand mapping: there are rows where `model` is filled but `Brand` is not.
     # We can back-fill brand from model via this mapping.
