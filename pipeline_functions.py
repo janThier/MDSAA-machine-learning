@@ -17,6 +17,8 @@ import pandas as pd
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import FunctionTransformer
+from sklearn.model_selection import RandomizedSearchCV, KFold
+
 
 
 ################################################################################
@@ -28,7 +30,7 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
     def __init__(self, ref_year=None):
         self.ref_year = ref_year
 
-    def fit(self, X, y=None):
+    def fit(self, X, y=None): # y is necessary because 3 arguments are given in pipeline # TODO figure out why this is the case
         X_ = X.copy()
         if self.ref_year is None:
             self.ref_year_ = X_['year'].max()
@@ -505,3 +507,45 @@ def get_feature_names_from_preprocessor(pre):
 def to_float_array(x):
     """Convert input to float array."""
     return np.array(x, dtype=float)
+
+
+######
+
+
+# Define a function to use it here and potentially use it later for a final hyperparameter tuning after feature selection again
+def model_hyperparameter_tuning(X_train, y_train, pipeline, param_dist, n_iter=100, splits=5):
+    
+    cv = KFold(n_splits=splits, shuffle=True, random_state=42) # 5 folds for more robust estimation
+
+    # Randomized search setup
+    model_random = RandomizedSearchCV(
+        estimator=pipeline,
+        param_distributions=param_dist,
+        n_iter=n_iter,                      # number of different hyperparameter combinations that will be randomly sampled and evaluated (more iterations = more thorough search but longer runtime)
+        scoring={
+            'mae': 'neg_mean_absolute_error',
+            'mse': 'neg_mean_squared_error',
+            'r2': 'r2'
+        },
+        refit='mae', # Refit the best model based on MAE on the whole training set
+        cv=cv,
+        n_jobs=-2,
+        random_state=42,
+        verbose=3,
+    )
+
+    # Fit the search
+    model_random.fit(X_train, y_train)
+
+    mae = -model_random.cv_results_['mean_test_mae'][model_random.best_index_]
+    mse = -model_random.cv_results_['mean_test_mse'][model_random.best_index_]
+    rmse = np.sqrt(mse)
+    r2 = model_random.cv_results_['mean_test_r2'][model_random.best_index_]
+
+    print("Model Results (CV metrics):")
+    print(f"MAE: {mae:.4f}")
+    print(f"RMSE: {rmse:.4f}")
+    print(f"R²: {r2:.4f}")
+    print("Best Model params:", model_random.best_params_)
+
+    return model_random.best_estimator_, model_random # return the best model
