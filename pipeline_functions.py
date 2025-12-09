@@ -20,6 +20,34 @@ from sklearn.preprocessing import FunctionTransformer
 from sklearn.model_selection import RandomizedSearchCV, KFold
 
 
+
+class DebugTransformer(BaseEstimator, TransformerMixin):
+    """Transformer that prints the data shape and optionally the data itself for easier debugging and understanding"""
+    
+    def __init__(self, name="Debug", show_data=False, n_rows=5):
+        self.name = name
+        self.show_data = show_data
+        self.n_rows = n_rows
+    
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X):
+        print(f"\n--- {self.name} ---")
+        print(f"Shape: {X.shape}")
+        print(f"Type: {type(X)}")
+        
+        if self.show_data:
+            if isinstance(X, pd.DataFrame):
+                print(f"\nFirst {self.n_rows} rows:")
+                display(X.head(self.n_rows))
+            else: # Edge-case for numpy array after column transformer
+                print(f"\nFirst {self.n_rows} rows:")
+                display(X[:self.n_rows])
+        
+        return X
+
+
 ################################################################################
 ##################### Handle missing values (GroupImputer) #####################
 ################################################################################
