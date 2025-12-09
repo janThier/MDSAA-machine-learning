@@ -48,7 +48,7 @@ class DebugTransformer(BaseEstimator, TransformerMixin):
                     print("\nGenerating data profiling report...")
                     profile = ProfileReport(
                         X,
-                        title='Airline Customer Data Preprocessed',
+                        title='Car Data Profiling Report',
                         correlations={
                             "pearson": {"calculate": True},
                             "spearman": {"calculate": False},
@@ -545,8 +545,8 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
         # tax normalized by engine and/or per mpg to focus on the tax of the car regardless of the other factor (prefered to keep engine because engine is the cause and mpg the effect but corr with price of mpg was higher (0.46 and -0.06))
         X['tax_per_mpg'] = X['tax'] / X['mpg']                          # No 0-handling necessary because mpg cannot be 0 (we only keep values from 5-150 and impute the others)
 
-        # MPG per engineSize to represent the efficiency of the car with respect to its engine size
-        X['mpg_per_engine'] = X['mpg'] / X['engineSize']                # No 0-handling necessary because engineSize cannot be 0 (we only keep values from 0.6–9.0 and impute the others)
+        # engine per mpg creates a signal for sports/luxury cars that have a high engine size but low mpg (high performance cars) -> these cars are usually more valuable
+        X['engine_per_mpg'] = X['engineSize'] / X['mpg']              # No 0-handling necessary because engineSize cannot be 0 (we only keep values from 0.6–9.0 and impute the others)
 
 
         ############ Create Interaction Features for anchor (relative positioning within brand/model)
