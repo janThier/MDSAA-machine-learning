@@ -18,15 +18,17 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.model_selection import RandomizedSearchCV, KFold
+from ydata_profiling import ProfileReport
 
 
 
 class DebugTransformer(BaseEstimator, TransformerMixin):
     """Transformer that prints the data shape and optionally the data itself for easier debugging and understanding"""
     
-    def __init__(self, name="Debug", show_data=False, n_rows=5):
+    def __init__(self, name="Debug", show_data=False, y_data_profiling=False, n_rows=5):
         self.name = name
         self.show_data = show_data
+        self.y_data_profiling = y_data_profiling
         self.n_rows = n_rows
     
     def fit(self, X, y=None):
@@ -42,6 +44,21 @@ class DebugTransformer(BaseEstimator, TransformerMixin):
                 print(f"\nFirst {self.n_rows} rows:")
                 display(X.head(self.n_rows))
                 display(X.describe(include='all').T)
+                if(self.y_data_profiling):
+                    print("\nGenerating data profiling report...")
+                    profile = ProfileReport(
+                        X,
+                        title='Airline Customer Data Preprocessed',
+                        correlations={
+                            "pearson": {"calculate": True},
+                            "spearman": {"calculate": False},
+                            "kendall": {"calculate": False},
+                            "phi_k": {"calculate": False},
+                            "cramers": {"calculate": False},
+                        },
+                    )
+                    profile.to_notebook_iframe()
+
             else: # Edge-case for numpy array after column transformer
                 print(f"\nFirst {self.n_rows} rows:")
                 display(X[:self.n_rows])

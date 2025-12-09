@@ -1,0 +1,204 @@
+# Old preset hps (1min):
+# MAE: 1289.7294
+# RMSE: 2185.5006
+# R²: 0.9498
+
+# Reapplying RandomizedSearchCV (40mins):
+# MAE: 1289.6713
+# RMSE: 2181.5766
+# R²: 0.9500
+# Best Model params: {'model__early_stopping': True, 'model__l2_regularization': np.float64(0.14092422497476265), 'model__learning_rate': np.float64(0.08219772826786356), 'model__max_iter': 464, 'model__max_leaf_nodes': 108, 'model__min_samples_leaf': 8, 'model__n_iter_no_change': 20, 'model__random_state': 42, 'model__validation_fraction': 0.1}
+
+# Using transmission and fuelType as OHE instead of TE (10mins):
+# MAE: 1283.2876
+# RMSE: 2184.9071
+# R²: 0.9499
+# Best Model params: {'model__early_stopping': True, 'model__l2_regularization': np.float64(0.4234014807063696), 'model__learning_rate': np.float64(0.06923222772633546), 'model__max_iter': 847, 'model__max_leaf_nodes': 137, 'model__min_samples_leaf': 12, 'model__n_iter_no_change': 20, 'model__random_state': 42, 'model__validation_fraction': 0.1}
+
+# Removed manual TE to prevent data leakage (30sek):
+# MAE: 1264.2084
+# RMSE: 2152.0902
+# R²: 0.9513
+# [fixed] Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+# Fix (remove certain) fillnas in feature_engineering:
+# MAE: 1259.7342
+# RMSE: 2153.3145
+# R²: 0.9513
+# [fixed] Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+# Added sklearn targetencoder in pipeline:
+# MAE: 1275.7318
+# RMSE: 2171.0317
+# R²: 0.9505
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+# Scale target encoded features:
+# MAE: 1275.7318
+# RMSE: 2171.0317
+# R²: 0.9505
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+
+# Removed anchor in anchor features (no division by overall mean):
+# MAE: 1275.7318
+# RMSE: 2171.0317
+# R²: 0.9505
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+# ==> Tree-based models do not need normalized features, so this is expected
+
+# Fixed leakage in med_price_anchor (smoothing):
+# MAE: 1268.8764
+# RMSE: 2160.6397
+# R²: 0.9510
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+# Use only mean te for 'Brand' and 'model' instead of mean and median te:
+# MAE: 1273.0038
+# RMSE: 2182.3061
+# R²: 0.9500
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+# Use only median te for 'Brand' and 'model' instead of mean te:
+# MAE: 1256.4969
+# RMSE: 2134.2390
+# R²: 0.9521
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+
+# Use cv=10 in TargetEncoder instead of default 5:
+
+# Use GroupMedianImputer for categorical_transformer_ohe and categorical_transformer_te_mean instead of SimpleImputer ():
+ 
+# --> 
+
+# categorical_features_ohe = ["transmission", "fuelType","Brand", "model"]
+# Model Results (CV metrics):
+# MAE: 1257.7883
+# RMSE: 2154.7975
+# R²: 0.9513
+
+# categorical_features_ohe = ["transmission", "fuelType"]
+# MAE: 1262.7020
+# RMSE: 2148.1356
+# R²: 0.9515
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+#Drop Features with correlation inbetween features (>0.9): 
+# MAE: 1293.6773
+# RMSE: 2206.5226
+# R²: 0.9488
+
+# vt__threshold in pipeline
+# MAE: 1260.7132
+# RMSE: 2151.5396
+# R²: 0.9514
+# Best Model params: {'vt__threshold': 0.005, 'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+# added imputer to QuantileEncoder pipeline step (performance was like this before so the minimal change comes from differences in Jans setup compared to Elias):
+# MAE: 1259.5270
+# RMSE: 2148.1023
+# R²: 0.9515
+# Best Model params: {'vt__threshold': 0.005, 'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+# Use only median imputer
+# MAE: 1256.7489
+# RMSE: 2132.2187
+# R²: 0.9522
+# Best Model params: {'vt__threshold': 0.005, 'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+# Fixed GroupImputer and added Feature Engineering to pipeline
+# MAE: 1287.0323
+# RMSE: 2186.0881
+# R²: 0.9498
+# Best Model params: {'vt__threshold': 0.005, 'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True}
+
+# Move imputation before FE
+# MAE: 1332.0587
+# RMSE: 2322.5895
+# R²: 0.9433
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True, 'fs__vt__threshold': 0.005}
+
+# Drop EVs
+# MAE: 1330.5313
+# RMSE: 2312.1234
+# R²: 0.9437
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True, 'fs__vt__threshold': 0.005}
+
+# Robust Scaler instead of Standard Scaler
+# MAE: 1326.9959
+# RMSE: 2310.4486
+# R²: 0.9438
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 12, 'model__max_leaf_nodes': 137, 'model__max_iter': 847, 'model__learning_rate': 0.06923222772633546, 'model__l2_regularization': 0.4234014807063696, 'model__early_stopping': True, 'fs__vt__threshold': 0.005}
+
+# HP-tuning
+# MAE: 1321.3877
+# RMSE: 2292.9172
+# R²: 0.9446
+# Best Model params: {'fs__vt__threshold': 0.0, 'model__early_stopping': True, 'model__l2_regularization': np.float64(0.8583588048137198), 'model__learning_rate': np.float64(0.05889383578028271), 'model__max_iter': 602, 'model__max_leaf_nodes': 139, 'model__min_samples_leaf': 4, 'model__n_iter_no_change': 20, 'model__random_state': 42, 'model__validation_fraction': 0.1}
+
+# FE: added positive correlated features as amplifications ("mileage_x_mpg", "mileage_x_age", "mpg_x_age"): 
+# MAE: 1328.9629
+# RMSE: 2323.6989
+# R²: 0.9431
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}
+
+# FE: Added mileage features to log
+# MAE: 1328.9398
+# RMSE: 2323.5366
+# R²: 0.9431
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}
+
+# Removed old interaction features whose variables dont have a correlation (age_x_engine)
+# MAE: 1334.9244
+# RMSE: 2323.5824
+# R²: 0.9431
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}
+
+# Added tax_per_mpg
+# MAE: 1331.1072
+# RMSE: 2329.1334
+# R²: 0.9429
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}
+
+# Remove tax_per_engine (to normalize tax only by one feature)
+# MAE: 1333.7221
+# RMSE: 2322.7953
+# R²: 0.9432
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}
+
+# FE: removed (mileage_x_mpg) bc high multicollinearity but lower corr with price 
+# MAE: 1325.5172
+# RMSE: 2304.5036
+# R²: 0.9441
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}
+
+# Including age_x_engine again
+# MAE: 1325.1450
+# RMSE: 2311.2110
+# R²: 0.9437
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}
+
+# Add features multiplied by age because age is inverse of year -> higher age should amplify the other features (only added tax_x_age bc the others were already present)
+# MAE: 1329.5533
+# RMSE: 2322.7099
+# R²: 0.9432
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}
+
+# Add 1 to alle engineered features using age to avoid zero multiplication
+# MAE: 1325.3450
+# RMSE: 2306.5963
+# R²: 0.9440
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}
+
+# add 1 to age in miles_per_year too
+# MAE: 1324.6319
+# RMSE: 2314.5009
+# R²: 0.9436
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}
+
+# Before FS (last step was: Add "mpg_x_age", "tax_x_age")
+# MAE: 1335.6473
+# RMSE: 2308.0557
+# R²: 0.9439
+# Best Model params: {'model__validation_fraction': 0.1, 'model__random_state': 42, 'model__n_iter_no_change': 20, 'model__min_samples_leaf': 4, 'model__max_leaf_nodes': 139, 'model__max_iter': 602, 'model__learning_rate': 0.05889383578028271, 'model__l2_regularization': 0.8583588048137198, 'model__early_stopping': True, 'fs__vt__threshold': 0.0}

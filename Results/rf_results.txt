@@ -1,0 +1,206 @@
+# MAE: 1275.1518
+# RMSE: 2232.9070
+# R²: 0.9477
+
+# Reapplying RandomizedSearchCV (~120mins):
+# MAE: 1272.4144
+# RMSE: 2214.9228
+# R²: 0.9486
+# Best Model params: {'model__bootstrap': False, 'model__max_depth': 27, 'model__max_features': 'sqrt', 'model__min_samples_leaf': 1, 'model__min_samples_split': 5, 'model__n_estimators': 328}
+
+# Using transmission and fuelType as OHE instead of TE (140mins):
+# Model Results (CV metrics):
+# MAE: 1271.8784
+# RMSE: 2223.6243
+# R²: 0.9482
+# Best Model params: {'model__bootstrap': False, 'model__max_depth': 20, 'model__max_features': 'sqrt', 'model__min_samples_leaf': 1, 'model__min_samples_split': 5, 'model__n_estimators': 386}
+
+# Removed manual TE to prevent data leakage (1min):
+# MAE: 1270.0122
+# RMSE: 2203.1101
+# R²: 0.9491
+# [fixed] Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# # Fix (remove certain) fillnas in feature_engineering (1min):
+# MAE: 1267.4191
+# RMSE: 2199.6899
+# R²: 0.9492
+# [fixed] Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# Added sklearn targetencoder in pipeline:
+# MAE: 1254.2265
+# RMSE: 2185.9107
+# R²: 0.9499
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# Scale target encoded features:
+# MAE: 1254.2265
+# RMSE: 2185.9107
+# R²: 0.9499
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# Removed anchor in anchor features (no division by overall mean):
+# MAE: 1254.2265
+# RMSE: 2185.9107
+# R²: 0.9499
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+# ==> Tree-based models do not need normalized features, so this is expected
+
+# Fixed leakage in med_price_anchor (smoothing):
+# MAE: 1249.7952
+# RMSE: 2185.0019
+# R²: 0.9500
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# Use only mean te for 'Brand' and 'model' instead of mean and median te:
+# MAE: 1262.8323
+# RMSE: 2215.5205
+# R²: 0.9486
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# Use only median te for 'Brand' and 'model' instead of mean te:
+# MAE: 1262.6739
+# RMSE: 2196.6384
+# R²: 0.9494
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# Use GroupMedianImputer for categorical_transformer_ohe and categorical_transformer_te_mean instead of SimpleImputer ():
+# --> 
+
+# categorical_features_ohe = ["transmission", "fuelType","Brand", "model"]
+# Model Results (CV metrics):
+# MAE: 1301.7759
+# RMSE: 2273.5359
+# R²: 0.9458
+
+# categorical_features_ohe = ["transmission", "fuelType"]
+# MAE: 1249.6696
+# RMSE: 2184.4328
+# R²: 0.9500
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+#Drop Features with correlation inbetween features (>0.9): 
+# MAE: 1376.7839
+# RMSE: 2399.4670
+# R²: 0.9396
+
+# vt__threshold in pipeline
+# MAE: 1248.3166
+# RMSE: 2179.9166
+# R²: 0.9502
+# Best Model params: {'vt__threshold': 0.005, 'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# added imputer to QuantileEncoder pipeline step
+# MAE: 1248.3166
+# RMSE: 2179.9166
+# R²: 0.9502
+# Best Model params: {'vt__threshold': 0.005, 'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# Use only median imputer
+# Model Results (CV metrics):
+# MAE: 1265.6359
+# RMSE: 2206.0571
+# R²: 0.9490
+# Best Model params: {'vt__threshold': 0.005, 'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# Fixed GroupImputer and added Feature Engineering to pipeline
+# MAE: 1290.8677
+# RMSE: 2282.9230
+# R²: 0.9454
+# Best Model params: {'vt__threshold': 0.005, 'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False}
+
+# Move imputation before FE:
+# MAE: 1315.3424
+# RMSE: 2351.2942
+# R²: 0.9420
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# Drop EVs
+# MAE: 1313.4236
+# RMSE: 2317.9496
+# R²: 0.9434
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# Robust Scaler instead of Standard Scaler
+# MAE: 1313.3405
+# RMSE: 2319.3653
+# R²: 0.9434
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# FE: added positive correlated features as amplifications ("mileage_x_mpg", "mileage_x_age", "mpg_x_age"): 
+# MAE: 1331.9471
+# RMSE: 2342.4949
+# R²: 0.9422
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# FE: Added mileage features to log
+# MAE: 1332.3948
+# RMSE: 2344.9570
+# R²: 0.9421
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# Removed old interaction features whose variables dont have a correlation (age_x_engine)
+# MAE: 1328.9576
+# RMSE: 2336.4210
+# R²: 0.9425
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# Added tax_per_mpg
+# MAE: 1327.8996
+# RMSE: 2331.4065
+# R²: 0.9428
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# Remove tax_per_engine (to normalize tax only by one feature)
+# MAE: 1328.0052
+# RMSE: 2318.9786
+# R²: 0.9434
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# FE: removed mileage_x_mpg bc high multicollinearity but lower corr with price 
+# MAE: 1315.9780
+# RMSE: 2310.6912
+# R²: 0.9438
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# including age_x_engine again
+# MAE: 1317.2370
+# RMSE: 2315.3188
+# R²: 0.9435
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# Add features multiplied by age because age is inverse of year -> higher age should amplify the other features (only added tax_x_age bc the others were already present)
+# MAE: 1319.1109
+# RMSE: 2322.6204
+# R²: 0.9432
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# Add 1 to alle engineered features using age to avoid zero multiplication
+# MAE: 1319.1206
+# RMSE: 2317.8314
+# R²: 0.9434
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# add 1 to age in miles_per_year too
+# MAE: 1318.7481
+# RMSE: 2316.9872
+# R²: 0.9435
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# Using features from last commit without tax_per_engine
+# MAE: 1314.8898
+# RMSE: 2315.9545
+# R²: 0.9435
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# Add tax_per_mpg
+# MAE: 1312.0831
+# RMSE: 2305.9326
+# R²: 0.9440
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
+
+# Before FS (last step was: Add "mpg_x_age", "tax_x_age")
+# MAE: 1310.7979
+# RMSE: 2313.0862
+# R²: 0.9437
+# Best Model params: {'model__n_estimators': 328, 'model__min_samples_split': 5, 'model__min_samples_leaf': 1, 'model__max_features': 'sqrt', 'model__max_depth': 20, 'model__bootstrap': False, 'fs__vt__threshold': 0.005}
