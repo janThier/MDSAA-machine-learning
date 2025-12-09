@@ -41,6 +41,7 @@ class DebugTransformer(BaseEstimator, TransformerMixin):
             if isinstance(X, pd.DataFrame):
                 print(f"\nFirst {self.n_rows} rows:")
                 display(X.head(self.n_rows))
+                display(X.describe(include='all').T)
             else: # Edge-case for numpy array after column transformer
                 print(f"\nFirst {self.n_rows} rows:")
                 display(X[:self.n_rows])
@@ -467,34 +468,62 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = X.copy()
+
+        # Available num features:
+        # orig_numeric_features = ["year", "mileage", "tax", "mpg", "engineSize", "previousOwners"] # though previousOwners has now correlations
+        # orig_categorical_features = ["Brand", "model", "transmission", "fuelType"]
+        # unused_features = ['hasDamage', 'paintQuality']
         
-        # # 1. Base Feature Creation: Car Age - Newer cars usually have higher prices, models prefer linear features
+        ############ 1. Base Feature Creation:
+        # Car Age - Newer cars usually have higher prices, models prefer linear features
         age = self.ref_year_ - X['year']
         X['age'] = age
 
-        # Miles per Year: Normalizes mileage by age (solves multicollinearity between year and mileage)
-        X['miles_per_year'] = X['mileage'] / age.replace({0: np.nan})
-        X['miles_per_year'] = X['miles_per_year'].fillna(X['mileage']) # if age is 0, just use mileage because that's the mileage it has driven so far in that year
 
-        # Interaction Terms: Capture non-linear effects between engine and other numeric features
-        X['age_x_engine'] = X['age'] * X['engineSize']
-        X['mpg_x_engine']  = X['mpg'] * X['engineSize']
+        ############ 2. Interaction effects to capture non-additive information (learn conditional relationships and potentially skyrocket their importance):
+        ############ - It helps to solve multicolinearity between features by combining them into one feature (the signal is then only in the new feature and the original features ?should be dropped?)
+        ############ => Only spearman correlations > 0.2 are regarded # TODO is that a good approach or is pearson maybe more suited in this case?
+        ############ - Use Multiplication if we think two features "boost" each other (e.g., Length*Width = Area).
+        ############ - Use Division if we need to "fairly compare" items of different sizes (e.g., Cost/Weight = Price per kg)
+        ############ -> Mult or Div has to be chosen based on the logic of the relationship
+        ###### Multiplication: The Amplifier (model synergy or joint occurrence: "The presence of A makes B more effective") -> capture the simultaneous impact of two things
 
-        # tax per engine
-        X['tax_per_engine'] = X['tax'] / X['engineSize'].replace({0: np.nan}) # Catch Edge Case if engineSize=0 occurs in test set (e.g. for EVs)
+        X['mpg_x_engine'] = X['mpg'] * X['engineSize']        # Cars with bigger engines tend to have lower MPG -> amplify effect (improves performance)
+        
+        # Removed because of high multicolinearity and lower corr with price: X['mileage_x_mpg']          = X['mileage'] * X[s'mpg'] # Higher mileage cars tend to have lower MPG (people drive lower mpg cars more often) -> amplify effect
+        # Add 1 to age because if age is 0 (this year) the value would be lost otherwise
+        X['engine_x_age'] = X['engineSize'] * (X['age']+1)      # Highlight the aspect of old cars with big engines for that time which were very valuable and might therefore still be valuable
+        X['mileage_x_age'] = X['mileage'] * (X['age']+1)        # Both are negatively correlated with price -> amplify effect to identify a stronger signal of old abused cars that are probably less valuable
+        X['mpg_x_age'] = X['mpg'] * (X['age']+1)                # Older cars tend to have higher MPG -> amplify effect 
+        X['tax_x_age'] = X['tax'] * (X['age']+1)                
 
-        # MPG per engineSize to represent the efficiency
-        X['mpg_per_engine'] = X['mpg'] / X['engineSize'].replace({0: np.nan}) # Catch Edge Case if engineSize=0 occurs in test set (e.g. for EVs)
+        ###### Division: The Normalizer (create ratios, rates, or efficiency metrics: "How much of A do we have per unit of B?") -> removes the influence of the divisor        
+        ### Normalize by Age to capture how features behave relative to the car's age
+        
+        # Miles per Year: Normalizes mileage by age -> reveals how much a car was really driven per year
+        X['miles_per_year'] = X['mileage'] / (X['age']+1)               # Add 1 to age because if age is 0 (this year) the division would fail (dont impute with 1 bc then its the same as 1 year old instead of being from this year)
 
-        # 2. Model Frequency: Popular models tend to have stable demand and prices
-        X['model_freq'] = X['model'].map(self.model_freq_).fillna(0.0)
+        # tax normalized by engine and/or per mpg to focus on the tax of the car regardless of the other factor (prefered to keep engine because engine is the cause and mpg the effect but corr with price of mpg was higher (0.46 and -0.06))
+        X['tax_per_mpg'] = X['tax'] / X['mpg']                          # No 0-handling necessary because mpg cannot be 0 (we only keep values from 5-150 and impute the others)
 
-        # 3. Create Interaction Features for anchor (relative positioning within brand/model)
+        # MPG per engineSize to represent the efficiency of the car with respect to its engine size
+        X['mpg_per_engine'] = X['mpg'] / X['engineSize']                # No 0-handling necessary because engineSize cannot be 0 (we only keep values from 0.6–9.0 and impute the others)
+
+
+        ############ Create Interaction Features for anchor (relative positioning within brand/model)
         X['brand_fuel'] = X['Brand'].astype(str) + "_" + X['fuelType'].astype(str)
         X['brand_trans'] = X['Brand'].astype(str) + "_" + X['transmission'].astype(str)
+
+
+        ############ Features based on learned statistics from the available data fold in the fit() method:
+        X['model_freq'] = X['model'].map(self.model_freq_).fillna(0.0) # Model Frequency: Popular models tend to have stable demand and prices
         
-        # 4. Relative Age (within brand): newer/older than brand median year
+
+        ############ Relative Age (within brand): newer/older than brand median year
         X['age_rel_brand'] = X['age'] - X['Brand'].map(self.brand_median_age_)
+        # TODO age_rel_model
+
+        # TODO tax divided by mean model price (affordability within model) # Before that: check whether road tax varies per model
         return X
 
 
