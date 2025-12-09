@@ -97,6 +97,10 @@ def clean_car_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # we cannot safely assume NaN means damaged, so this feature may be ignored later.
     df["hasDamage"] = pd.to_numeric(df["hasDamage"], errors="coerce").astype("Int64")
 
+    # Drop paintQuality because we cannot use it for predictions (filled by mechanic)
+    df = df.drop(columns=["paintQuality"])
+
+
     # CATEGORICAL COLUMNS:
     #   the idea is always:
     #   - normalise case / whitespace
@@ -294,7 +298,7 @@ def clean_car_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["fuelType"] = df["fuelType"].astype(str).str.strip().str.lower().map(reverse_fuel)
     df["fuelType"] = df["fuelType"].replace({None: np.nan})
 
-    # Drop Electric vehicles due to too few samples which are even logically inconsistent (Ford mondeo is not an electric car)
+    # Remove Electric vehicles due to too few samples which are even logically inconsistent (Ford mondeo is not an electric car)
     df = df[df["fuelType"] != "Electric"]
 
     # build model -> brand mapping: there are rows where `model` is filled but `Brand` is not.

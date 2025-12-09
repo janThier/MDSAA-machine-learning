@@ -480,6 +480,12 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
             .median()
             .to_dict()
         )
+        self.brand_mean_age_ = (
+            (self.ref_year_ - X_['year'])
+            .groupby(X_['Brand'])
+            .mean()
+            .to_dict()
+        )
         self.model_freq_ = X_['model'].value_counts(normalize=True).to_dict()
         return self
 
@@ -537,7 +543,7 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
         
 
         ############ Relative Age (within brand): newer/older than brand median year
-        X['age_rel_brand'] = X['age'] - X['Brand'].map(self.brand_median_age_)
+        X['age_rel_brand'] = X['age'] - X['Brand'].map(self.brand_mean_age_) # use mean instead of median because most of the values were 0 otherwise
         # TODO age_rel_model
 
         # TODO tax divided by mean model price (affordability within model) # Before that: check whether road tax varies per model
