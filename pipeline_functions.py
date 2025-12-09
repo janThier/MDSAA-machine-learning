@@ -474,18 +474,34 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
             self.ref_year_ = X_['year'].max()
         else:
             self.ref_year_ = self.ref_year
-        self.brand_median_age_ = (
-            (self.ref_year_ - X_['year'])
-            .groupby(X_['Brand'])
-            .median()
-            .to_dict()
-        )
+        
         self.brand_mean_age_ = (
             (self.ref_year_ - X_['year'])
             .groupby(X_['Brand'])
             .mean()
             .to_dict()
         )
+        self.model_mean_age_ = (
+            (self.ref_year_ - X_['year'])
+            .groupby(X_['model'])
+            .mean()
+            .to_dict()
+        )
+
+        self.model_mean_mileage_ = (
+            X_['mileage']
+            .groupby(X_['model'])
+            .mean()
+            .to_dict()
+        )
+
+        self.model_mean_engineSize_ = (
+            X_['engineSize']
+            .groupby(X_['model'])
+            .mean()
+            .to_dict()
+        )
+
         self.model_freq_ = X_['model'].value_counts(normalize=True).to_dict()
         return self
 
@@ -504,7 +520,7 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
 
 
         ############ 2. Interaction effects to capture non-additive information (learn conditional relationships and potentially skyrocket their importance):
-        ############ - It helps to solve multicolinearity between features by combining them into one feature (the signal is then only in the new feature and the original features ?should be dropped?)
+        ############ - It helps to solve multicolinearity between features by combining them into one feature creating a new signal
         ############ => Only spearman correlations > 0.2 are regarded # TODO is that a good approach or is pearson maybe more suited in this case?
         ############ - Use Multiplication if we think two features "boost" each other (e.g., Length*Width = Area).
         ############ - Use Division if we need to "fairly compare" items of different sizes (e.g., Cost/Weight = Price per kg)
@@ -544,7 +560,9 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
 
         ############ Relative Age (within brand): newer/older than brand median year
         X['age_rel_brand'] = X['age'] - X['Brand'].map(self.brand_mean_age_) # use mean instead of median because most of the values were 0 otherwise
-        # TODO age_rel_model
+        X['age_rel_model'] = X['age'] - X['model'].map(self.model_mean_age_)
+
+        X['engine_rel_model'] = X['engineSize'] / X['model'].map(self.model_mean_engineSize_) # engine size relative to model mean engine size
 
         # TODO tax divided by mean model price (affordability within model) # Before that: check whether road tax varies per model
         return X
@@ -562,11 +580,17 @@ class NamedFunctionTransformer(FunctionTransformer):
         super().__init__(func=func, **kwargs)
 
     def get_feature_names_out(self, input_features=None):
-        # if custom names specified, use them
+        # Fixed: use self.feature_names instead of self._feature_names
         if self.feature_names is not None:
             return np.asarray(self.feature_names, dtype=object)
-        # otherwise just pass through the input feature names
-        return np.asarray(input_features, dtype=object)
+        # IMPORTANT: Return input_features if no custom names provided
+        if input_features is not None:
+            return np.asarray(input_features, dtype=object)
+        # Last resort: return generic names based on n_features_in_
+        if hasattr(self, 'n_features_in_'):
+            return np.asarray([f"x{i}" for i in range(self.n_features_in_)], dtype=object)
+        # Cannot determine feature names
+        return None
 
 
 # Callable function which uses the NamedFunctionTransformer to get feature names from a preprocessor
