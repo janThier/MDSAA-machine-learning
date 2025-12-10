@@ -77,8 +77,9 @@ class GroupImputer(BaseEstimator, TransformerMixin):
 
     Idea
     ----
-    For each row with a missing value, fill it using statistics from
-    "similar" rows first, and only fall back to global statistics if needed.
+    We have to  compute the median value for the train dataset and fill the missing values in train, validation and test set with the median from the train dataset.
+
+    For each row with a missing value, fill it using statistics from "similar" rows first, and only fall back to global statistics if needed.
 
     Hierarchy for numeric columns (num_cols):
         1) median per (group_cols[0], group_cols[1])     e.g. (Brand, model)
@@ -527,7 +528,7 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
         ############ -> Mult or Div has to be chosen based on the logic of the relationship
         ###### Multiplication: The Amplifier (model synergy or joint occurrence: "The presence of A makes B more effective") -> capture the simultaneous impact of two things
 
-        X['mpg_x_engine'] = X['mpg'] * X['engineSize']        # Cars with bigger engines tend to have lower MPG -> amplify effect (improves performance)
+        X['mpg_x_engine'] = X['mpg'] * X['engineSize']        # TODO multiplication kind of cancels the signal (10mpg * 9es = 90 , 45mpg * 2es = 90 -> big and small cars treated the same) (However, it improves performance)
         
         # Removed because of high multicolinearity and lower corr with price: X['mileage_x_mpg']          = X['mileage'] * X[s'mpg'] # Higher mileage cars tend to have lower MPG (people drive lower mpg cars more often) -> amplify effect
         # Add 1 to age because if age is 0 (this year) the value would be lost otherwise
@@ -573,7 +574,7 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
 ################################################################################
 
 # Adjust FunctionTransformer to expose feature names
-class NamedFunctionTransformer(FunctionTransformer):
+class NamedFunctionTransformer(FunctionTransformer): # TODO check if this is really necessary or can be removed when implementing get_feature_names_out everywhere clean
     def __init__(self, func=None, feature_names=None, **kwargs):
         # store as attribute so sklearn.get_params can access it
         self.feature_names = feature_names
@@ -591,22 +592,6 @@ class NamedFunctionTransformer(FunctionTransformer):
             return np.asarray([f"x{i}" for i in range(self.n_features_in_)], dtype=object)
         # Cannot determine feature names
         return None
-
-
-# Callable function which uses the NamedFunctionTransformer to get feature names from a preprocessor
-def get_feature_names_from_preprocessor(pre):
-    feature_names = []
-    for name, trans, cols in pre.transformers_:
-        if name != 'remainder':
-            if hasattr(trans, 'get_feature_names_out'):
-                # for categorical OHE
-                try:
-                    feature_names.extend(trans.get_feature_names_out(cols))
-                except:
-                    feature_names.extend(cols)
-            else:
-                feature_names.extend(cols)
-    return feature_names
 
 
 # TODO warum benutzen wir das => auch bei pipeline adden
