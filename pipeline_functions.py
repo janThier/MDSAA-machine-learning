@@ -15,10 +15,17 @@ Design goals
 import numpy as np
 import pandas as pd
 
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.model_selection import RandomizedSearchCV, KFold
+from sklearn.feature_selection import mutual_info_regression
+from sklearn.exceptions import NotFittedError
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 from ydata_profiling import ProfileReport
+
 
 
 
@@ -567,6 +574,198 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
 
         # TODO tax divided by mean model price (affordability within model) # Before that: check whether road tax varies per model
         return X
+
+################################################################################
+######################## Feature Selection #######################
+################################################################################
+# Custom Majority Voter Transformer to prevent data leakage
+# Explanation of Leakage Prevention:
+# 0) Function call: pass the preprocessor_pipe (which contains the Majority Voter) into RandomizedSearchCV:
+# 1) Splitting: The search CV splits the data into Train and Validation folds.
+# 2) Fitting: It calls .fit() on your pipeline using only the Train fold.
+# 3) Voting: The custom MajorityVoteSelectorTransformer runs inside the pipeline. It sees only the Train fold. It calculates votes and selects features based only on that fold.
+# 4) Transformation: It transforms the Validation fold based on the features selected in step 3.
+# ==> Leakage Free: Since the Validation fold was never used to decide which features to keep, there is no leakage.
+#
+# Explanation of why it is not a problem for the final refit that different features might have been selected in different folds:
+# 0) Final refit is called on best hyperparameters found during CV.
+# 1) The MajorityVoteSelectorTransformer sees the entire training data during final refit.
+# 2) It calculates votes and selects features based on the entire training data. (This is done without hp-tuning now because the hps are fixed.)
+# 3) It transforms the entire training data based on the features selected in step 2.
+# ==> No Problem: Although different folds might have selected different features during CV, the final refit uses the entire training data to select only one final set of features (which might vary from previous features selected in the folds but thats not a problem).
+
+
+class MajorityVoteSelectorTransformer(BaseEstimator, TransformerMixin):
+    """
+    A custom transformer that fits multiple fs algorithms and keeps features selected by at least 'min_votes' selectors.
+    """
+    def __init__(self, selectors=None, min_votes=2):
+        """
+        args:
+            selectors: list of sklearn feature selector objects.
+            min_votes: int, minimum number of selectors that must agree to keep a feature.
+        """
+        self.selectors = selectors
+        self.min_votes = min_votes
+        self.fitted_selectors_ = []
+        self.support_mask_ = None
+        self.feature_names_in_ = None
+
+    def fit(self, X, y=None):
+        # Validate inputs
+        if not self.selectors:
+            raise ValueError("You must provide a list of selectors.")
+        
+        if hasattr(X, "columns"):
+            self.feature_names_in_ = np.array(X.columns) # store input feature names if available for the get_feature_names_out method
+        
+        self.fitted_selectors_ = []
+        votes = np.zeros(X.shape[1])
+
+        # Loop through each selector, fit it, and tally votes
+        for selector in self.selectors:
+            # Clone to ensure we don't modify the original objects
+            sel = clone(selector)
+            sel.fit(X, y)
+            self.fitted_selectors_.append(sel)
+            
+            # Get boolean mask of selected features (True means that they are selected)
+            mask = sel.get_support()
+            votes += mask.astype(int)
+        
+        # Create the final mask: True if votes >= threshold
+        self.support_mask_ = votes >= self.min_votes
+        
+        return self
+
+    def transform(self, X):
+        if self.support_mask_ is None:
+            raise NotFittedError("This MajorityVoteSelectorTransformer instance is not fitted yet.")
+        
+        # If X is a DataFrame, keep column names for better debugging. Otherwise return numpy array
+        if hasattr(X, "loc"):
+            return X.loc[:, self.support_mask_]
+        
+        return X[:, self.support_mask_]
+
+    def get_feature_names_out(self, input_features=None):
+        """This method is called by sklearn when set_output(transform='pandas') is on (like in our debug-transformer)"""
+        # If we stored names during fit, use them as default
+        if input_features is None and self.feature_names_in_ is not None:
+            input_features = self.feature_names_in_
+        
+        # If input_features is still None, sklearn generates x0, x1...
+        if input_features is None:
+            # If no names provided, generate generic indices
+            return np.array([f"x{i}" for i in range(len(self.support_mask_))])[self.support_mask_]
+        
+        return np.array(input_features)[self.support_mask_]
+
+
+# This custom Correlation Threshold Selector selects features based on their absolute correlation with the target variable.
+class CorrelationThresholdSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, threshold=0.05):
+        self.threshold = threshold
+        self.mask_ = None
+
+    def fit(self, X, y):
+        
+        correlations = []
+        # Handle both cases whether X is DataFrame or Numpy
+        X_arr = np.array(X)
+        y_arr = np.array(y)
+        
+        for i in range(X_arr.shape[1]):
+            # Simple absolute Pearson correlation
+            corr = np.corrcoef(X_arr[:, i], y_arr)[0, 1]
+            correlations.append(abs(corr))
+            
+        self.mask_ = np.array(correlations) > self.threshold
+        return self
+
+    def get_support(self):
+        return self.mask_
+
+    def transform(self, X):
+        return X[:, self.mask_]
+
+
+class MutualInfoThresholdSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, threshold=0.01, n_neighbors=10, random_state=42):
+        """
+        threshold: Minimum MI score required to keep a feature.
+        n_neighbors: Parameter for the internal MI calculation.
+        """
+        self.threshold = threshold
+        self.n_neighbors = n_neighbors
+        self.random_state = random_state
+        self.mask_ = None
+        self.feature_names_in_ = None
+
+    def fit(self, X, y):
+        # Save input feature names if available (for pandas output)
+        if hasattr(X, "columns"):
+            self.feature_names_in_ = np.array([str(c) for c in X.columns])
+        else:
+            self.feature_names_in_ = None
+
+        # Calculate Mutual Information Scores (assume X is all numeric here (handled by your previous pipeline steps))
+        self.scores_ = mutual_info_regression(
+            X, 
+            y, 
+            n_neighbors=self.n_neighbors, 
+            random_state=self.random_state
+        )
+        
+        # 3. Create Mask based on Threshold
+        self.mask_ = self.scores_ > self.threshold
+        return self
+
+    def transform(self, X):
+        if self.mask_ is None:
+            raise NotFittedError("Selector not fitted.")
+        
+        # Handle DataFrame vs Numpy (depending on the setting in the pipeline (e.g. df in the debug transformer))
+        if hasattr(X, "loc"):
+            return X.loc[:, self.mask_]
+        return X[:, self.mask_]
+
+    def get_support(self):
+        return self.mask_
+    
+
+def plot_selector_agreement(majority_selector, feature_names):
+    """"Function to plot a heatmap showing which features were selected by which voters in the MajorityVoteSelectorTransformer."""
+
+    feature_names = np.asarray(feature_names)
+    
+    # Collect masks from each fitted selector and convert to int for boolean values
+    data = {}
+    for i, selector in enumerate(majority_selector.fitted_selectors_):
+        
+        selector_name = selector.__class__.__name__
+        
+        # If it's a SelectFromModel, add the base estimator name
+        if hasattr(selector, 'estimator'):
+            base_estimator_name = selector.estimator.__class__.__name__
+            selector_name = f"{selector_name}({base_estimator_name})"
+        
+        # Convert boolean mask to int (0/1) for heatmap
+        data[selector_name] = selector.get_support().astype(int)
+    
+    # Create DataFrame and add the kept and total votes columns
+    df_votes = pd.DataFrame(data, index=feature_names)
+    df_votes['Total Votes'] = df_votes.sum(axis=1).astype(int)
+    df_votes['KEPT'] = (df_votes['Total Votes'] >= majority_selector.min_votes).astype(int)
+    
+    # Plot Heatmap (all columns are now int, so seaborn can handle them)
+    plt.figure(figsize=(10, len(feature_names) * 0.4))
+    sns.heatmap(df_votes, annot=True, cbar=False, cmap="Blues", linewidths=0.5, fmt='d')
+    plt.title("Feature Selection Agreement")
+    plt.tight_layout()
+    plt.show()
+
+
 
 
 ################################################################################
