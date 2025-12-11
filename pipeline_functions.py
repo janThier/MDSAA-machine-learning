@@ -21,9 +21,6 @@ from sklearn.model_selection import RandomizedSearchCV, KFold
 from sklearn.feature_selection import mutual_info_regression
 from sklearn.exceptions import NotFittedError
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 from ydata_profiling import ProfileReport
 
 
@@ -799,8 +796,9 @@ def to_float_array(x):
     return np.array(x, dtype=float)
 
 
-######
-
+################################################################################
+######################## Hyperparameter tuning #######################
+################################################################################
 
 # Define a function to use it here and potentially use it later for a final hyperparameter tuning after feature selection again
 def model_hyperparameter_tuning(X_train, y_train, pipeline, param_dist, n_iter=100, splits=5):
@@ -822,20 +820,40 @@ def model_hyperparameter_tuning(X_train, y_train, pipeline, param_dist, n_iter=1
         n_jobs=-2,
         random_state=42,
         verbose=3,
+        return_train_score=True
     )
 
     # Fit the search
     model_random.fit(X_train, y_train)
 
-    mae = -model_random.cv_results_['mean_test_mae'][model_random.best_index_]
-    mse = -model_random.cv_results_['mean_test_mse'][model_random.best_index_]
-    rmse = np.sqrt(mse)
-    r2 = model_random.cv_results_['mean_test_r2'][model_random.best_index_]
+    val_mae = -model_random.cv_results_['mean_test_mae'][model_random.best_index_]
+    val_mse = -model_random.cv_results_['mean_test_mse'][model_random.best_index_]
+    val_rmse = np.sqrt(val_mse)
+    val_r2 = model_random.cv_results_['mean_test_r2'][model_random.best_index_]
+
+    train_mae = -model_random.cv_results_['mean_train_mae'][model_random.best_index_]
+    train_mse = -model_random.cv_results_['mean_train_mse'][model_random.best_index_]
+    train_rmse = np.sqrt(train_mse)
+    train_r2 = model_random.cv_results_['mean_train_r2'][model_random.best_index_]
+
+    model_scores = {
+        'train_mae': train_mae,
+        'train_rmse': train_rmse,
+        'train_r2': train_r2,
+        'val_mae': val_mae,
+        'val_rmse': val_rmse,
+        'val_r2': val_r2
+    }
+
+    print("Model Train Results")
+    print(f"MAE: {train_mae:.4f}")
+    print(f"RMSE: {train_rmse:.4f}")
+    print(f"R²: {train_r2:.4f}")
 
     print("Model Results (CV metrics):")
-    print(f"MAE: {mae:.4f}")
-    print(f"RMSE: {rmse:.4f}")
-    print(f"R²: {r2:.4f}")
+    print(f"MAE: {val_mae:.4f}")
+    print(f"RMSE: {val_rmse:.4f}")
+    print(f"R²: {val_r2:.4f}")
     print("Best Model params:", model_random.best_params_)
 
-    return model_random.best_estimator_, model_random # return the best model
+    return model_random.best_estimator_, model_random, model_scores
