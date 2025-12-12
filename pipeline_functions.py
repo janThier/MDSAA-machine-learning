@@ -4,7 +4,6 @@ Pipeline helpers and custom transformers for the 'Cars 4 You' ML project.
 Central place for:
 - Several feature engineering steps encapsulated in a transformer (CarFeatureEngineer)
 - Group-based hierarchical imputation (GroupImputer)
-- Mean estimation with M-estimate smoothing (m_estimate_mean)
 
 Design goals
 ------------
@@ -18,8 +17,12 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.model_selection import RandomizedSearchCV, KFold
-from sklearn.feature_selection import mutual_info_regression
+from sklearn.feature_selection import SelectorMixin, mutual_info_regression
 from sklearn.exceptions import NotFittedError
+from sklearn.utils.validation import check_is_fitted, check_X_y
+
+from scipy.stats import spearmanr
+
 
 from ydata_profiling import ProfileReport
 
@@ -432,35 +435,6 @@ class GroupImputer(BaseEstimator, TransformerMixin):
         return np.asarray(input_features, dtype=object)
 
 
-# TODO this method is not used anywhere right? Can we remove it @Samu ~J
-def m_estimate_mean(sum_, prior, count, m=50):
-    """
-    Posterior mean with M-estimate smoothing.
-
-    This function implements the standard M-estimator used to smooth noisy
-    category-wise statistics (e.g. average price per model). Small groups are
-    pulled towards a prior, large groups are closer to their empirical mean.
-
-    Parameters
-    ----------
-    sum_ : float or pd.Series
-        Sum of target values per group.
-    prior : float or pd.Series
-        Prior "pseudo-sum". In this project, we use `global_mean * count`,
-        mirroring the original notebook implementation.
-    count : float or pd.Series
-        Number of observations in the group.
-    m : int, default 50
-        Smoothing strength. Larger `m` means stronger pull towards the prior.
-
-    Returns
-    -------
-    float or pd.Series
-        Smoothed mean estimate.
-    """
-    return (sum_ + m * prior) / (count + m)
-
-
 ################################################################################
 ######################## Feature Engineering #######################
 ################################################################################
@@ -671,10 +645,10 @@ class CorrelationThresholdSelector(BaseEstimator, TransformerMixin):
         # Handle both cases whether X is DataFrame or Numpy
         X_arr = np.array(X)
         y_arr = np.array(y)
-        
+
         for i in range(X_arr.shape[1]):
-            # Simple absolute Pearson correlation
-            corr = np.corrcoef(X_arr[:, i], y_arr)[0, 1]
+            # Use spearman correlation to not make normality assumptions about the data # TODO maybe try kendalls tau or cramers V
+            corr, p_value = spearmanr(X_arr[:, i], y_arr)
             correlations.append(abs(corr))
             
         self.mask_ = np.array(correlations) > self.threshold
@@ -685,7 +659,162 @@ class CorrelationThresholdSelector(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         return X[:, self.mask_]
+    
 
+class DropCorrelatedFeatures(BaseEstimator, SelectorMixin):
+    def __init__(self, threshold=0.95):
+        self.threshold = threshold
+        
+    def fit(self, X, y=None):
+        # Handle both DataFrame vs Numpy
+        if hasattr(X, "columns"):
+            self.feature_names_in_ = np.array([str(c) for c in X.columns])
+            df = X
+        else:
+            self.feature_names_in_ = None
+            df = pd.DataFrame(X) # Convert to DF for easy corr calculation
+
+        # Select Upper Triangle of correlation matrix to not double-check the values and 
+        corr_matrix = df.corr(method="spearman").abs()
+        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+
+        # Find features > threshold Create Mask (True = Keep, False = Drop)
+        to_drop = [column for column in upper.columns if any(upper[column] > self.threshold)]
+        n_features = X.shape[1]
+        self.mask_ = np.ones(n_features, dtype=bool)
+        
+        # If we have names, map drops to indices. If not, use indices directly.
+        if self.feature_names_in_ is not None:
+             drop_indices = [np.where(self.feature_names_in_ == col)[0][0] for col in to_drop]  # Find indices of dropped columns
+        else:
+             drop_indices = to_drop                                                             # In numpy case, columns are usually integers 0..N
+
+        self.mask_[drop_indices] = False
+        
+        return self
+
+    def _get_support_mask(self):
+        check_is_fitted(self, 'mask_')
+        return self.mask_
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is not None:
+            names = np.array(input_features)
+        elif self.feature_names_in_ is not None:
+            names = self.feature_names_in_
+        else:
+            names = np.array([f"x{i}" for i in range(len(self.mask_))])
+        return names[self.mask_]
+
+
+class SpearmanRelevancyRedundancySelector(BaseEstimator, SelectorMixin):
+    """
+    Selects features based on:
+      1. Relevance: High Spearman correlation with the target.
+      2. Non-Redundancy: Low Spearman correlation with already selected features (drops redundant variable with lower correlation to target).
+
+    More detailed (Algorithm: “Maximum Relevance, Minimum Redundancy (mRMR)-style pruning”):
+    1. Sort features by relevance.
+    2. Start with an empty list of selected features.
+    3. For each feature (in order of relevance):
+    4. Compare it with all already-selected features.
+    5. If its |corr| with any selected feature > threshold, skip it.
+    6. Otherwise, keep the feature.
+    
+    Parameters:
+    ----------
+    relevance_threshold : float
+        Minimum absolute Spearman correlation with target to consider a feature 'relevant'.
+    redundancy_threshold : float
+        Maximum absolute Spearman correlation allowed between a new feature and already selected features.
+    """
+    def __init__(self, relevance_threshold=0.1, redundancy_threshold=0.85):
+        self.relevance_threshold = relevance_threshold
+        self.redundancy_threshold = redundancy_threshold
+        self.selected_indices_ = None
+        self.feature_names_in_ = None
+
+    def fit(self, X, y):
+        # 1. Input Validation and Feature Name Capture
+        if hasattr(X, "columns"):
+            self.feature_names_in_ = np.array([str(c) for c in X.columns])
+        
+        # Convert to Numpy for speed, ensure y is correct shape
+        X_arr, y_arr = check_X_y(X, y, dtype=None)
+        n_features = X_arr.shape[1]
+
+        # TODO maybe use Kendalls tau or cramers V for categorical features?
+
+        # 1) Relevance Filtering (Filter out weak features first)
+        relevance_scores = []
+        for i in range(n_features):
+            # Calculate spearman with target
+            corr, _ = spearmanr(X_arr[:, i], y_arr)
+            # Handle NaN correlations (constant features) # TODO probably not necessary
+            # if np.isnan(corr):
+            #     corr = 0.0
+            relevance_scores.append(abs(corr))
+        
+        self.relevance_scores_ = np.array(relevance_scores)
+        relevance_indices = np.where(self.relevance_scores_ > self.relevance_threshold)[0]
+        
+        # Sort candidates by relevance (Best feature first (descending) -> argsort gives ascending, so we take [::-1])
+        sorted_candidates = relevance_indices[np.argsort(self.relevance_scores_[relevance_indices])[::-1]]
+
+        # 2) Eliminate Redundant Features (Remove the one with lower relevance)
+        selected_indices = []
+        
+        # Optimization: Create a DataFrame of just the candidates for fast matrix corr
+        if len(sorted_candidates) > 0:
+            X_candidates = pd.DataFrame(X_arr[:, sorted_candidates]) # pandas for the correlation matrix as it handles Spearman efficiently
+            corr_matrix = X_candidates.corr(method='spearman').abs().values
+            
+            # Map: corr_matrix index [i] corresponds to sorted_candidates[i]
+            # We keep track of "local" indices (0..len(candidates)) that we accept
+            kept_local_indices = []
+            
+            for i in range(len(sorted_candidates)):
+                # Always keep the single most relevant feature (i=0) because there is no possible redundant feature here yet
+                if i == 0:
+                    kept_local_indices.append(i)
+                    continue
+                
+                # Check correlation with al features that passed relevance threshold (corr_matrix[i, kept_local_indices] gives array of corrs)
+                current_corrs = corr_matrix[i, kept_local_indices]                  
+                
+                # If the max correlation with any selected feature is too high, drop it
+                if np.max(current_corrs) < self.redundancy_threshold:
+                    kept_local_indices.append(i)
+            
+            # Convert local kept indices back to original feature indices
+            selected_indices = sorted_candidates[kept_local_indices]
+
+        self.selected_indices_ = np.array(selected_indices)
+        return self
+
+    def _get_support_mask(self):
+        """
+        Required by SelectorMixin. Returns boolean mask of selected features.
+        """
+        check_is_fitted(self, 'selected_indices_')
+        n_features = len(self.relevance_scores_)
+        mask = np.zeros(n_features, dtype=bool)
+        mask[self.selected_indices_] = True
+        return mask
+
+    def get_feature_names_out(self, input_features=None):
+        """
+        Ensures proper feature names are passed to the next step.
+        """
+        if input_features is not None:
+            names = np.array(input_features)
+        elif self.feature_names_in_ is not None:
+            names = self.feature_names_in_
+        else:
+            names = np.array([f"x{i}" for i in range(len(self.relevance_scores_))])
+            
+        return names[self._get_support_mask()]
+    
 
 class MutualInfoThresholdSelector(BaseEstimator, TransformerMixin):
     def __init__(self, threshold=0.01, n_neighbors=10, random_state=42):
@@ -729,39 +858,6 @@ class MutualInfoThresholdSelector(BaseEstimator, TransformerMixin):
 
     def get_support(self):
         return self.mask_
-    
-
-def plot_selector_agreement(majority_selector, feature_names):
-    """"Function to plot a heatmap showing which features were selected by which voters in the MajorityVoteSelectorTransformer."""
-
-    feature_names = np.asarray(feature_names)
-    
-    # Collect masks from each fitted selector and convert to int for boolean values
-    data = {}
-    for i, selector in enumerate(majority_selector.fitted_selectors_):
-        
-        selector_name = selector.__class__.__name__
-        
-        # If it's a SelectFromModel, add the base estimator name
-        if hasattr(selector, 'estimator'):
-            base_estimator_name = selector.estimator.__class__.__name__
-            selector_name = f"{selector_name}({base_estimator_name})"
-        
-        # Convert boolean mask to int (0/1) for heatmap
-        data[selector_name] = selector.get_support().astype(int)
-    
-    # Create DataFrame and add the kept and total votes columns
-    df_votes = pd.DataFrame(data, index=feature_names)
-    df_votes['Total Votes'] = df_votes.sum(axis=1).astype(int)
-    df_votes['KEPT'] = (df_votes['Total Votes'] >= majority_selector.min_votes).astype(int)
-    
-    # Plot Heatmap (all columns are now int, so seaborn can handle them)
-    plt.figure(figsize=(10, len(feature_names) * 0.4))
-    sns.heatmap(df_votes, annot=True, cbar=False, cmap="Blues", linewidths=0.5, fmt='d')
-    plt.title("Feature Selection Agreement")
-    plt.tight_layout()
-    plt.show()
-
 
 
 
