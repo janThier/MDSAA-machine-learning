@@ -1359,7 +1359,7 @@ def to_float_array(x):
 ################################################################################
 
 
-def model_hyperparameter_tuning(X_train, y_train, pipeline, param_dist, n_iter=100, splits=5):
+def model_hyperparameter_tuning(X_train, y_train, cv, pipeline, param_dist, n_iter=100):
     """
     Helper for RandomizedSearchCV with consistent scoring output.
 
@@ -1382,7 +1382,6 @@ def model_hyperparameter_tuning(X_train, y_train, pipeline, param_dist, n_iter=1
     model_random : RandomizedSearchCV object (fitted)
     model_scores : dict with train/val metrics
     """
-    cv = KFold(n_splits=splits, shuffle=True, random_state=42)  # 5 folds for more robust estimation
 
     # Randomized search setup
     model_random = RandomizedSearchCV(
@@ -1392,7 +1391,7 @@ def model_hyperparameter_tuning(X_train, y_train, pipeline, param_dist, n_iter=1
         scoring={"mae": "neg_mean_absolute_error", "mse": "neg_mean_squared_error", "r2": "r2"},
         refit="mae",  # Refit the best model based on MAE on the whole training set
         cv=cv,
-        n_jobs=-2,
+        n_jobs=-1,
         random_state=42,
         verbose=3,
         return_train_score=True,
