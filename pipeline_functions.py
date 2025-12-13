@@ -96,17 +96,17 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
     -----
     - This must NOT drop rows inside transform(), otherwise X/y get misaligned in CV.
     - We rename Brand -> brand once here so the rest of the pipeline can consistently use `brand`.
-    - paintQuality is dropped because it is not available for predictions (filled by mechanic).
+    - paintQuality is dropped because it is not available for predictions (filled by mechanic) (also mentioned in Feature Selection Section).
     """
 
     def __init__(
         self,
         year_min=1886,
         year_max=2020,
-        mpg_min=5,
-        mpg_max=60,
-        engine_min=0.6,
-        engine_max=12.7,
+        mpg_min=5,              
+        mpg_max=150,             # was between(5, 150) (Samu set to 60)
+        engine_min=0.6,         # was between(0.6, 9.0) (Samu set to 12.7 max) # TODO maybe add mapping for engineSizes that are possible
+        engine_max=9,
         paint_min=5,
         paint_max=100,
         handle_electric="other",  # {"keep","other","nan"}
@@ -136,7 +136,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
     def transform(self, X):
         df = pd.DataFrame(X).copy()
 
-        # column carID (set as index, has no duplicates)  # NOTE: in pipelines, keeping it as a column is often easier
+        # column carID (set as index, has no duplicates) (in pipelines, keeping it as a column is often easier)
         if self.set_carid_index and "carID" in df.columns:
             df = df.set_index("carID")
 
@@ -150,50 +150,49 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
 
         # NUMERICAL COLUMNS:
 
-        # column year: 1886 to 2020
+        # column year
         if "year" in df.columns:
             df["year"] = pd.to_numeric(df["year"], errors="coerce")
             df.loc[~df["year"].between(self.year_min, self.year_max), "year"] = np.nan
             df["year"] = np.floor(df["year"]).astype("Int64")
 
-        # column mileage: >= 0
+        # column mileage
         if "mileage" in df.columns:
             df["mileage"] = pd.to_numeric(df["mileage"], errors="coerce")
             df.loc[df["mileage"] < 0, "mileage"] = np.nan
             df["mileage"] = np.floor(df["mileage"]).astype("Int64")
 
-        # column tax: >= 0
+        # column tax
         if "tax" in df.columns:
             df["tax"] = pd.to_numeric(df["tax"], errors="coerce")
             df.loc[df["tax"] < 0, "tax"] = np.nan
             df["tax"] = np.floor(df["tax"]).astype("Int64")
 
-        # column mpg: 5–60
+        # column mpg
         if "mpg" in df.columns:
             df["mpg"] = pd.to_numeric(df["mpg"], errors="coerce")
             df.loc[~df["mpg"].between(self.mpg_min, self.mpg_max), "mpg"] = np.nan
             df["mpg"] = np.floor(df["mpg"]).astype("Int64")
 
-        # column engineSize: 0.6–12.7
+        # column engineSize
         if "engineSize" in df.columns:
             df["engineSize"] = pd.to_numeric(df["engineSize"], errors="coerce")
             df.loc[~df["engineSize"].between(self.engine_min, self.engine_max), "engineSize"] = np.nan
             df["engineSize"] = df["engineSize"].round(1)
 
-        # column paintQuality%: 0–100
+        # column paintQuality%
         if "paintQuality" in df.columns:
             df["paintQuality"] = pd.to_numeric(df["paintQuality"], errors="coerce")
             df.loc[~df["paintQuality"].between(self.paint_min, self.paint_max), "paintQuality"] = np.nan
             df["paintQuality"] = np.floor(df["paintQuality"]).astype("Int64")
 
-        # column previousOwners: >= 0
+        # column previousOwners
         if "previousOwners" in df.columns:
             df["previousOwners"] = pd.to_numeric(df["previousOwners"], errors="coerce")
             df.loc[df["previousOwners"] < 0, "previousOwners"] = np.nan
             df["previousOwners"] = np.floor(df["previousOwners"]).astype("Int64")
 
-        # column hasDamage (0/NaN)
-        # we cannot safely assume NaN means damaged, so this feature may be ignored later.
+        # column hasDamage (we cannot safely assume NaN means damaged or not damaged)
         if "hasDamage" in df.columns:
             df["hasDamage"] = pd.to_numeric(df["hasDamage"], errors="coerce").astype("Int64")
 
@@ -206,6 +205,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         #   - normalise case / whitespace
         #   - map any known typo/variant into a canonical label using a reverse dict
 
+        # TODO check whether we map words (e.g. "ercedes") that only occur in the test set because that would be data leakage -> a dynamic approach like similarity-matching would be necessary
         # column brand: map all incorrect spellings to the right brand
         brand_map = {
             "VW": ["VW", "V", "W", "vw", "v", "w"],
@@ -244,7 +244,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
             df["brand"] = self._canon_map(df["brand"], reverse_brand)
 
         # column model: map all incorrect spellings to the right model
-        # NOTE: this mapping encodes project-specific model names.
+        # This mapping encodes project-specific model names.
         model_map = {
             # VW
             "golf": ["golf", "gol", "golf s", "golf sv"],
@@ -290,7 +290,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
             "mondeo": ["mondeo", "monde"],
             "kuga": ["kuga", "kug"],
             "ecosport": ["ecosport", "eco sport", "ecospor"],
-            "puma": ["puma", "pum"],
+            "puma": ["puma"], # TODO "pum" was included here but is only in the test set
             "edge": ["edge", "edg"],
             "s-max": ["s-max", "s-ma", "smax"],
             "c-max": ["c-max", "c-ma", "cmax"],
