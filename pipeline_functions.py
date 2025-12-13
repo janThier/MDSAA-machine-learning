@@ -901,7 +901,7 @@ def model_hyperparameter_tuning(X_train, y_train, pipeline, param_dist, n_iter=1
     
     cv = KFold(n_splits=splits, shuffle=True, random_state=42) # 5 folds for more robust estimation
 
-    # Randomized search setup
+    # Randomized search setup # TODO ensure that all models have the same splits
     model_random = RandomizedSearchCV(
         estimator=pipeline,
         param_distributions=param_dist,
