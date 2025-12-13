@@ -433,6 +433,169 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
             df.loc[mask, "brand"] = df.loc[mask, "model"].map(model_to_brand).astype("string")
 
         return df
+    
+
+################################################################################
+######################## Outlier Handling (OutlierHandler) #####################
+################################################################################
+
+class OutlierHandler(BaseEstimator, TransformerMixin):
+    """
+    Robust outlier handling as a pipeline step.
+
+    After deterministic cleaning (range checks, typos, impossible values), we still can have:
+      1) wrong values for that specific model but missed in the data cleaning
+      2) extreme but valid values that distort the distribution
+
+    Approach:
+    --------
+    - Detect outliers using multiple robust univariate rules and only flag points that
+      are supported by more than one rule (voting).
+    - Then either:
+        > set them to NaN (recommended BEFORE GroupImputer), or
+        > clip them to bounds (winsorize) (recommended AFTER imputation / for linear models)
+
+    Default: vote between
+      - Tukey IQR fences (k=1.5)
+      - Modified Z-score using median + MAD (threshold=3.5)
+    """
+
+    def __init__(
+        self,
+        cols=None,
+        methods=("iqr", "mod_z"),
+        min_votes=2,
+        iqr_k=1.5,
+        z_thresh=3.5,
+        action="nan",           # "nan" or "clip"
+        verbose=False,
+    ):
+        self.cols = cols
+        self.methods = methods
+        self.min_votes = min_votes
+        self.iqr_k = iqr_k
+        self.z_thresh = z_thresh
+        self.action = action
+        self.verbose = verbose
+
+    def fit(self, X, y=None):
+        df = pd.DataFrame(X).copy()
+        self.feature_names_in_ = df.columns.to_list()
+
+        # Decide which columns to handle
+        if self.cols is None:
+            # Only numeric columns by default
+            self.cols_ = df.select_dtypes(include="number").columns.to_list()
+        else:
+            self.cols_ = [c for c in self.cols if c in df.columns]
+
+        self.stats_ = {}
+
+        for col in self.cols_:
+            s = pd.to_numeric(df[col], errors="coerce").astype(float)
+            s = s.dropna()
+            if s.empty:
+                self.stats_[col] = {}
+                continue
+
+            col_stats = {}
+
+            # --- IQR fences ---
+            if "iqr" in self.methods:
+                q1 = float(s.quantile(0.25))
+                q3 = float(s.quantile(0.75))
+                iqr = q3 - q1
+                lower = q1 - self.iqr_k * iqr
+                upper = q3 + self.iqr_k * iqr
+                col_stats["iqr"] = {"lower": lower, "upper": upper, "q1": q1, "q3": q3, "iqr": iqr}
+
+            # --- Modified Z-score (median + MAD) ---
+            if "mod_z" in self.methods:
+                med = float(s.median())
+                mad = float(np.median(np.abs(s - med)))
+                # Avoid division-by-zero (constant-ish feature)
+                if mad <= 0:
+                    col_stats["mod_z"] = {"lower": -np.inf, "upper": np.inf, "med": med, "mad": mad}
+                else:
+                    # |0.6745*(x-med)/MAD| > z_thresh  ==>  x outside [med ± z_thresh*MAD/0.6745]
+                    delta = (self.z_thresh * mad) / 0.6745
+                    lower = med - delta
+                    upper = med + delta
+                    col_stats["mod_z"] = {"lower": lower, "upper": upper, "med": med, "mad": mad}
+
+            self.stats_[col] = col_stats
+
+        return self
+
+    def transform(self, X):
+        check_is_fitted(self, "stats_")
+        df = pd.DataFrame(X).copy()
+        df = df.reindex(columns=self.feature_names_in_)
+
+        n_total_flagged = 0
+        self.n_outliers_by_col_ = {}
+
+        for col in getattr(self, "cols_", []):
+            if col not in df.columns:
+                continue
+
+            s = pd.to_numeric(df[col], errors="coerce").astype(float)
+
+            # build vote counter
+            votes = np.zeros(len(df), dtype=int)
+
+            # IQR flags
+            if "iqr" in self.stats_.get(col, {}):
+                b = self.stats_[col]["iqr"]
+                votes += ((s < b["lower"]) | (s > b["upper"])).astype(int)
+
+            # Modified Z flags
+            if "mod_z" in self.stats_.get(col, {}):
+                b = self.stats_[col]["mod_z"]
+                votes += ((s < b["lower"]) | (s > b["upper"])).astype(int)
+
+            out_mask = votes >= self.min_votes
+            n_flagged = int(out_mask.sum())
+            self.n_outliers_by_col_[col] = n_flagged
+            n_total_flagged += n_flagged
+
+            if n_flagged == 0:
+                continue
+
+            if self.action == "nan":
+                df.loc[out_mask, col] = np.nan
+
+            elif self.action == "clip":
+                # Winsorize: cap values instead of removing rows (keeps rare but valid cars)
+                # For clipping we use the intersection of available bounds (most conservative):
+                lowers = []
+                uppers = []
+                if "iqr" in self.stats_[col]:
+                    lowers.append(self.stats_[col]["iqr"]["lower"])
+                    uppers.append(self.stats_[col]["iqr"]["upper"])
+                if "mod_z" in self.stats_[col]:
+                    lowers.append(self.stats_[col]["mod_z"]["lower"])
+                    uppers.append(self.stats_[col]["mod_z"]["upper"])
+
+                lower_clip = max(lowers) if lowers else -np.inf
+                upper_clip = min(uppers) if uppers else np.inf
+
+                df[col] = s.clip(lower_clip, upper_clip)
+
+            else:
+                raise ValueError(f"OutlierHandler: unknown action='{self.action}'. Use 'nan' or 'clip'.")
+
+        self.n_outliers_total_ = n_total_flagged
+        if self.verbose:
+            print(f"OutlierHandler: flagged total outliers (cells): {self.n_outliers_total_}")
+            # print(self.n_outliers_by_col_)  # uncomment for detailed logging
+
+        return df
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            input_features = getattr(self, "feature_names_in_", None)
+        return np.asarray(input_features, dtype=object)
 
 
 ################################################################################
