@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import ydata_profiling
+import ydata_profiling # import required for deployment because it's included in the pipeline
 
 # BRAND → MODEL MAPPING
 
