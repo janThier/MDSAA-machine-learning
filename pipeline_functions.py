@@ -218,12 +218,12 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
 
         def _try(x):
             if pd.isna(x):
-                return pd.NA
+                return np.nan
             tok = str(x).strip().lower()
             if len(tok) < self.fuzzy_min_token_len:
-                return pd.NA
+                return np.nan
             m = self._fuzzy_one(tok, choices, cutoff=cutoff)
-            return m if m is not None else pd.NA
+            return m if m is not None else np.nan
 
         miss = out.isna()
         if miss.any() and choices:
@@ -363,7 +363,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         if "model" in df.columns:
             df["_raw_model"] = self._norm_str_series(df["model"])
         else:
-            df["_raw_model"] = pd.Series([pd.NA] * len(df), index=df.index, dtype="string")
+            df["_raw_model"] = pd.Series([np.nan] * len(df), index=df.index, dtype="string")
 
         # If brand is Audi and model token is exactly "a", we do not want do guessing (a1/a3/a4/...) -> map to dedicated category a_unknown.
         if "brand" in df.columns and "model" in df.columns:
@@ -543,7 +543,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
             if self.handle_electric == "other":
                 df.loc[df["fuelType"] == "Electric", "fuelType"] = "Other"
             elif self.handle_electric == "nan":
-                df.loc[df["fuelType"] == "Electric", "fuelType"] = pd.NA
+                df.loc[df["fuelType"] == "Electric", "fuelType"] = np.nan
 
 
         # FUZZY FALLBACK
@@ -582,11 +582,11 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
                     for idx in df.index[miss_model]:
                         raw_tok = df.loc[idx, "_raw_model"]
                         if pd.isna(raw_tok) or len(str(raw_tok)) < self.fuzzy_min_token_len:
-                            filled.append(pd.NA)
+                            filled.append(np.nan)
                             continue
                         choices = _choices_for_row(idx)
                         m = self._fuzzy_one(raw_tok, choices, cutoff=self.fuzzy_cutoff_model)
-                        filled.append(m if m is not None else pd.NA)
+                        filled.append(m if m is not None else np.nan)
 
                     df.loc[miss_model, "model"] = pd.Series(filled, index=df.index[miss_model], dtype="string")
 
