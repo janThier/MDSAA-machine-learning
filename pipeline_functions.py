@@ -130,7 +130,6 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
     Notes
     -----
     - paintQuality is dropped because it is not available for predictions (filled by mechanic).
-    - Electric vehicles are recoded (not dropped) due to very small / inconsistent presence.
     """
 
     def __init__(
@@ -527,6 +526,8 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         reverse_trans = {v.lower(): k for k, vals in trans_map.items() for v in vals}
         if "transmission" in df.columns:
             df["transmission"] = self._canon_map(df["transmission"], reverse_trans)
+            # Set Unknown transmission values to NaN to lead the imputation handle it
+            df.loc[df["transmission"] == "Unknown", "transmission"] = np.nan
 
         # column fuelType
         fuel_map = {
@@ -540,7 +541,8 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         if "fuelType" in df.columns:
             df["fuelType"] = self._canon_map(df["fuelType"], reverse_fuel)
 
-            # Remove Electric vehicles due to too few samples (do NOT drop rows inside pipeline)
+            
+            # Try different techniques to deal with Electric vehicles due to too few samples (do NOT drop rows inside pipeline)
             if self.handle_electric == "other":
                 df.loc[df["fuelType"] == "Electric", "fuelType"] = "Other"
             elif self.handle_electric == "nan":
@@ -1437,13 +1439,6 @@ class NamedFunctionTransformer(FunctionTransformer):  # TODO check if this is re
             return np.asarray([f"x{i}" for i in range(self.n_features_in_)], dtype=object)
         # Cannot determine feature names
         return None
-
-
-# TODO warum benutzen wir das => auch bei pipeline adden
-def to_float_array(x):
-    """Convert input to float array."""
-    return np.array(x, dtype=float)
-
 
 
 ################################################################################
