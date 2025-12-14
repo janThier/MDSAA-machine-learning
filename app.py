@@ -5,24 +5,25 @@ import joblib
 # BRAND → MODEL MAPPING
 
 BRAND_MODELS = {
-    "Audi": ["a1", "a3", "a4", "a5", "a6", "a7", "a8", "q2", "q3", "q5", "q7", "q8", "tt", "r8"],
+    "Audi": ["a1", "a3", "a4", "a5", "a6", "a7", "a8", "q2", "q3", "q5", "q7", "q8", "tt", "r8", "Other"],
     "BMW": [
         "1 series", "2 series", "3 series", "4 series", "5 series", "6 series", "7 series", "8 series",
-        "x1", "x2", "x3", "x4", "x5", "x6", "x7", "z3", "z4", "m3", "m4", "m5", "m6"
+        "x1", "x2", "x3", "x4", "x5", "x6", "x7", "z3", "z4", "m3", "m4", "m5", "m6", "Other"
     ],
-    "Ford": ["fiesta", "focus", "mondeo", "kuga", "ecosport", "puma", "edge", "s-max", "c-max", "b-max", "ka+"],
-    "Hyundai": ["i10", "i20", "i30", "i40", "ioniq", "ix20", "ix35", "kona", "tucson", "santa fe"],
+    "Ford": ["fiesta", "focus", "mondeo", "kuga", "ecosport", "puma", "edge", "s-max", "c-max", "b-max", "ka+", "Other"],
+    "Hyundai": ["i10", "i20", "i30", "i40", "ioniq", "ix20", "ix35", "kona", "tucson", "santa fe", "Other"],
     "Mercedes": [
         "a class", "b class", "c class", "e class", "s class", "glc class", "gle class", "gla class",
-        "cls class", "glb class", "gls class", "m class", "sl class", "cl class", "v class", "x-class", "g class"
+        "cls class", "glb class", "gls class", "m class", "sl class", "cl class", "v class", "x-class", "g class", "Other"
     ],
     "Opel": [
         "astra", "corsa", "insignia", "mokka", "zafira", "meriva", "adam", "vectra",
-        "antara", "combo life", "grandland x", "crossland x"
+        "antara", "combo life", "grandland x", "crossland x", "Other"
     ],
-    "Skoda": ["fabia", "octavia", "superb", "scala", "karoq", "kodiaq", "kamiq", "yeti"],
-    "Toyota": ["yaris", "corolla", "aygo", "rav4", "auris", "avensis", "c-hr", "verso", "hilux", "land cruiser"],
-    "VW": ["golf", "passat", "polo", "tiguan", "touran", "up", "sharan", "scirocco", "amarok", "arteon", "beetle"],
+    "Skoda": ["fabia", "octavia", "superb", "scala", "karoq", "kodiaq", "kamiq", "yeti", "Other"],
+    "Toyota": ["yaris", "corolla", "aygo", "rav4", "auris", "avensis", "c-hr", "verso", "hilux", "land cruiser", "Other"],
+    "VW": ["golf", "passat", "polo", "tiguan", "touran", "up", "sharan", "scirocco", "amarok", "arteon", "beetle", "Other"],
+    "Other":["Other"]
 }
 
 # 1) MODEL LOADING
@@ -31,7 +32,7 @@ BRAND_MODELS = {
 def load_model():
     """Load the trained model pipeline from disk."""
     try:
-        model_tuple = joblib.load("rf_best_rand.pkl")
+        model_tuple = joblib.load("hgb_tuned_pipe.pkl")
         
         # Extract pipeline (always first element of tuple)
         if isinstance(model_tuple, tuple):
@@ -183,11 +184,9 @@ with col9:
 with col10:
     fuel_type = st.selectbox(
         "Fuel Type",
-        ["Petrol", "Diesel", "Hybrid", "Other"],
+        ["Petrol", "Diesel", "Hybrid", "Electric", "Other"],
         help="Type of fuel"
     )
-
-st.caption("Note: Electric vehicles are not supported by this model")
 
 st.divider()
 
@@ -290,19 +289,21 @@ with st.sidebar:
     # Dataset Coverage
     st.header("Dataset Coverage")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Brands", "9")
-    with col2:
-        st.metric("Models", "114")
-    
-    # Compact list
-    st.write("**Supported Brands:**")
-    st.caption(", ".join(sorted(BRAND_MODELS.keys())))
-    
+    st.markdown(
+    f"""
+    The model was trained on a total of **9 brands** and **114 models**.  
+    Peak performance is achieved on the following brands, which are best represented in the training data: \n  
+    {", ".join(sorted(BRAND_MODELS.keys()))}
+
+    Prices for all other brands and models can still be estimated by leveraging their remaining vehicle attributes.
+    """
+)
+   
     # Detailed view on request
-    if st.checkbox("Show all models", key="show_models"):
+    if st.checkbox("Show best performing brands & models", key="show_models"):
         for brand_name in sorted(BRAND_MODELS.keys()):
+            if brand_name == "Other":
+                continue
             models = BRAND_MODELS[brand_name]
             with st.expander(f"{brand_name} ({len(models)})"):
                 cols = st.columns(4)
