@@ -182,7 +182,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
     @staticmethod
     def _norm_str_series(s: pd.Series) -> pd.Series:
         """Lowercase + strip without turning NaN into the string 'nan'."""
-        return s.astype("string").str.strip().str.lower()
+        return s.astype(str).str.strip().str.lower().replace('nan', np.nan)
 
     @staticmethod
     def _canon_map(series: pd.Series, reverse_map: dict) -> pd.Series:
@@ -190,9 +190,9 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         Map known variants to canonical labels using a reverse dictionary:
           reverse_map[variant_lower] = canonical_label
         """
-        s = series.astype("string").str.strip().str.lower()
+        s = series.astype(str).str.strip().str.lower().replace('nan', np.nan)
         out = s.map(reverse_map)
-        return out.astype("string")
+        return out
 
 
     # Helpers (fuzzy matching)
@@ -218,16 +218,16 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
 
         def _try(x):
             if pd.isna(x):
-                return np.nan
+                return None
             tok = str(x).strip().lower()
             if len(tok) < self.fuzzy_min_token_len:
-                return np.nan
+                return None
             m = self._fuzzy_one(tok, choices, cutoff=cutoff)
-            return m if m is not None else np.nan
+            return m
 
         miss = out.isna()
         if miss.any() and choices:
-            out.loc[miss] = out.loc[miss].apply(_try).astype("string")
+            out.loc[miss] = out.loc[miss].apply(_try)
         return out
 
 
@@ -296,22 +296,22 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         if "year" in df.columns:
             df["year"] = pd.to_numeric(df["year"], errors="coerce")
             df.loc[~df["year"].between(self.year_min, self.year_max), "year"] = np.nan
-            df["year"] = np.floor(df["year"]).astype("Int64")
+            df["year"] = np.floor(df["year"]).astype("float64")
 
         if "mileage" in df.columns:
             df["mileage"] = pd.to_numeric(df["mileage"], errors="coerce")
             df.loc[df["mileage"] < 0, "mileage"] = np.nan
-            df["mileage"] = np.floor(df["mileage"]).astype("Int64")
+            df["mileage"] = np.floor(df["mileage"]).astype("float64")
 
         if "tax" in df.columns:
             df["tax"] = pd.to_numeric(df["tax"], errors="coerce")
             df.loc[df["tax"] < 0, "tax"] = np.nan
-            df["tax"] = np.floor(df["tax"]).astype("Int64")
+            df["tax"] = np.floor(df["tax"]).astype("float64")
 
         if "mpg" in df.columns:
             df["mpg"] = pd.to_numeric(df["mpg"], errors="coerce")
             df.loc[~df["mpg"].between(self.mpg_min, self.mpg_max), "mpg"] = np.nan
-            df["mpg"] = np.floor(df["mpg"]).astype("Int64")
+            df["mpg"] = np.floor(df["mpg"]).astype("float64")
 
         if "engineSize" in df.columns:
             df["engineSize"] = pd.to_numeric(df["engineSize"], errors="coerce")
@@ -321,16 +321,16 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         if "paintQuality" in df.columns:
             df["paintQuality"] = pd.to_numeric(df["paintQuality"], errors="coerce")
             df.loc[~df["paintQuality"].between(self.paint_min, self.paint_max), "paintQuality"] = np.nan
-            df["paintQuality"] = np.floor(df["paintQuality"]).astype("Int64")
+            df["paintQuality"] = np.floor(df["paintQuality"]).astype("float64")
 
         if "previousOwners" in df.columns:
             df["previousOwners"] = pd.to_numeric(df["previousOwners"], errors="coerce")
             df.loc[df["previousOwners"] < 0, "previousOwners"] = np.nan
-            df["previousOwners"] = np.floor(df["previousOwners"]).astype("Int64")
+            df["previousOwners"] = np.floor(df["previousOwners"]).astype("float64")
 
         # column hasDamage (we cannot safely assume NaN means damaged or not damaged)
         if "hasDamage" in df.columns:
-            df["hasDamage"] = pd.to_numeric(df["hasDamage"], errors="coerce").astype("Int64")
+            df["hasDamage"] = pd.to_numeric(df["hasDamage"], errors="coerce").astype("float64")
 
         # Drop paintQuality because we cannot use it for predictions (filled by mechanic)
         if "paintQuality" in df.columns:
@@ -363,7 +363,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         if "model" in df.columns:
             df["_raw_model"] = self._norm_str_series(df["model"])
         else:
-            df["_raw_model"] = pd.Series([np.nan] * len(df), index=df.index, dtype="string")
+            df["_raw_model"] = pd.Series([np.nan] * len(df), index=df.index)
 
         # If brand is Audi and model token is exactly "a", we do not want do guessing (a1/a3/a4/...) -> map to dedicated category a_unknown.
         if "brand" in df.columns and "model" in df.columns:
@@ -511,7 +511,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         if "model" in df.columns:
             # Important: do NOT overwrite the Audi special case a_unknown
             # We only map those rows where model is still not already set to a_unknown
-            model_is_unknown_bucket = df["model"].astype("string") == "a_unknown"
+            model_is_unknown_bucket = df["model"].astype(str) == "a_unknown"
             mapped = self._canon_map(df["model"], reverse_model)
             df.loc[~model_is_unknown_bucket, "model"] = mapped.loc[~model_is_unknown_bucket]
 
@@ -552,23 +552,18 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         if self.use_fuzzy:
             # brand fuzzy
             if "brand" in df.columns and getattr(self, "brand_vocab_", []):
-                df["brand"] = df["brand"].astype("string")
                 df["brand"] = self._fuzzy_fill_missing(df["brand"], self.brand_vocab_, self.fuzzy_cutoff_brand)
 
             # transmission fuzzy
             if "transmission" in df.columns and getattr(self, "trans_vocab_", []):
-                df["transmission"] = df["transmission"].astype("string")
                 df["transmission"] = self._fuzzy_fill_missing(df["transmission"], self.trans_vocab_, self.fuzzy_cutoff_trans)
 
             # fuel fuzzy
             if "fuelType" in df.columns and getattr(self, "fuel_vocab_", []):
-                df["fuelType"] = df["fuelType"].astype("string")
                 df["fuelType"] = self._fuzzy_fill_missing(df["fuelType"], self.fuel_vocab_, self.fuzzy_cutoff_fuel)
 
             # model fuzzy (restricted to brand-specific vocab when possible)
             if "model" in df.columns:
-                df["model"] = df["model"].astype("string")
-
                 # only attempt fuzzy on missing model values
                 miss_model = df["model"].isna()
                 if miss_model.any():
@@ -588,7 +583,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
                         m = self._fuzzy_one(raw_tok, choices, cutoff=self.fuzzy_cutoff_model)
                         filled.append(m if m is not None else np.nan)
 
-                    df.loc[miss_model, "model"] = pd.Series(filled, index=df.index[miss_model], dtype="string")
+                    df.loc[miss_model, "model"] = pd.Series(filled, index=df.index[miss_model])
 
         # clean helper column
         df = df.drop(columns=["_raw_model"], errors="ignore")
@@ -613,7 +608,13 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         # fill missing brand from model where possible
         if "brand" in df.columns and "model" in df.columns:
             mask = df["brand"].isna() & df["model"].notna()
-            df.loc[mask, "brand"] = df.loc[mask, "model"].map(model_to_brand).astype("string")
+            df.loc[mask, "brand"] = df.loc[mask, "model"].map(model_to_brand)
+
+        # Fallback to ensure sklearn compatibility (convert all string dtypes to object and replace pd.NA with np.nan)
+        for col in df.columns:
+            if str(df[col].dtype) == 'string':
+                # First replace pd.NA explicitly, then convert to object
+                df[col] = df[col].replace({pd.NA: np.nan}).astype('object')
 
         return df
     
@@ -1157,11 +1158,12 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
         ############ Features based on learned statistics from the available data fold in the fit() method:
         X["model_freq"] = X["model"].map(self.model_freq_).fillna(0.0)  # Model Frequency: Popular models tend to have stable demand and prices
 
-        ############ Relative Age (within brand): newer/older than brand median year
-        X["age_rel_brand"] = X["age"] - X["brand"].map(self.brand_mean_age_)  # use mean instead of median because most of the values were 0 otherwise
-        X["age_rel_model"] = X["age"] - X["model"].map(self.model_mean_age_)
-
-        X["engine_rel_model"] = X["engineSize"] / X["model"].map(self.model_mean_engineSize_)  # engine size relative to model mean engine size
+        ############ Relative Age (within brand): newer/older than brand median year (fill with 0 if brand or model was not seen during training)
+        X["age_rel_brand"] = X["age"] - X["brand"].map(self.brand_mean_age_).fillna(0.0)  # use mean instead of median because most of the values were 0 otherwise
+        X["age_rel_model"] = X["age"] - X["model"].map(self.model_mean_age_).fillna(0.0)
+        
+        # fill with 1 if model was not seen during training
+        X["engine_rel_model"] = (X["engineSize"] / X["model"].map(self.model_mean_engineSize_).fillna(1.0)).fillna(1.0)  # engine size relative to model mean engine size
 
         # TODO tax divided by mean model price (affordability within model) # Before that: check whether road tax varies per model
         return X
