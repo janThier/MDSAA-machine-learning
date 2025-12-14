@@ -26,19 +26,22 @@ BRAND_MODELS = {
     "Other":["Other"]
 }
 
-# 1) MODEL LOADING
+# 1) PAGE CONFIG
+st.set_page_config(
+    page_title="Cars 4 You - Price Predictor",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
 
+# 2) MODEL LOADING
 @st.cache_resource
 def load_model():
     """Load the trained model pipeline from disk."""
     try:
-        model_tuple = joblib.load("rf_tuned_pipe.pkl")
+        loaded_pipe = joblib.load("rf_tuned_pipe.pkl")
         
-        # Extract pipeline (always first element of tuple)
-        if isinstance(model_tuple, tuple):
-            pipeline = model_tuple[0]
-        else:
-            pipeline = model_tuple
+        # # Extract pipeline
+        pipeline = loaded_pipe
         
         if not hasattr(pipeline, 'predict'):
             raise ValueError(f"Loaded object doesn't have predict() method. Type: {type(pipeline)}")
@@ -55,13 +58,7 @@ def load_model():
 
 model = load_model()
 
-# 2) PAGE CONFIG
-
-st.set_page_config(
-    page_title="Cars 4 You - Price Predictor",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
+# 3) HEADER
 
 st.title("Cars 4 You - Price Prediction")
 st.markdown("""
@@ -71,7 +68,7 @@ trained on 75,969 vehicles.
 
 st.divider()
 
-# 3) INPUT SECTION
+# 4) INPUT SECTION
 
 st.subheader("Car Details")
 
@@ -190,7 +187,7 @@ with col10:
 
 st.divider()
 
-# 4) PREDICTION BUTTON & LOGIC
+# 5) PREDICTION BUTTON & LOGIC
 
 # Centered prediction button
 col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
@@ -275,7 +272,7 @@ if predict_button:
                 
                 st.exception(e)
 
-# 5) SIDEBAR
+# 6) SIDEBAR
 
 with st.sidebar:
     st.header("About")
@@ -325,7 +322,7 @@ with st.sidebar:
 
     st.caption("Built by Group 5 - ML Project 2025")
 
-# 6) FOOTER
+# 7) FOOTER
 
 st.divider()
 st.caption("""
