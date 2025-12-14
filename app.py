@@ -32,7 +32,7 @@ BRAND_MODELS = {
 def load_model():
     """Load the trained model pipeline from disk."""
     try:
-        model_tuple = joblib.load("hgb_tuned_pipe.pkl")
+        model_tuple = joblib.load("rf_tuned_pipe.pkl")
         
         # Extract pipeline (always first element of tuple)
         if isinstance(model_tuple, tuple):
