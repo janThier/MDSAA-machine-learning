@@ -38,8 +38,9 @@ st.set_page_config(
 @st.cache_resource
 def load_model():
     """Load the trained model pipeline from disk."""
+    model = 'rf_tuned_pipe'
     try:
-        loaded_pipe = joblib.load("rf_tuned_pipe.pkl")
+        loaded_pipe = joblib.load(f"{model}.pkl")
         
         # # Extract pipeline
         pipeline = loaded_pipe
@@ -51,7 +52,7 @@ def load_model():
         
     except FileNotFoundError:
         st.error("Model file not found")
-        st.info("Make sure 'rf_best_rand.pkl' is in the same directory as 'app.py'")
+        st.info(f"Make sure '{model}.pkl' is in the same directory as 'app.py'")
         st.stop()
     except Exception as e:
         st.error(f"Error loading model: {str(e)}")
