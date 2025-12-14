@@ -640,8 +640,8 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
     - Detect outliers using multiple robust univariate rules and only flag points that
       are supported by more than one rule (voting).
     - Then either:
-        > set them to NaN (recommended BEFORE GroupImputer), or
-        > clip them to bounds (winsorize) (recommended AFTER imputation / for linear models)
+        > set them to NaN
+        > clip them to bounds (winsorize)
 
     Default: vote between
       - Tukey IQR fences (k=1.5)
