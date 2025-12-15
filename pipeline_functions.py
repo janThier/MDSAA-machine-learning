@@ -31,11 +31,8 @@ from scipy.stats import spearmanr
 
 from difflib import get_close_matches
 
-# ydata-profiling is optional (do not crash the whole pipeline if missing)
-try:
-    from ydata_profiling import ProfileReport  # type: ignore
-except Exception:
-    ProfileReport = None
+#!pip install ydata_profiling
+from ydata_profiling import ProfileReport
 
 from collections import Counter
 
@@ -2068,37 +2065,39 @@ def get_cv_results(models, X_train, y_train, cv, rs):
 # Hyperparameter tuning
 ################################################################################
 
-def model_hyperparameter_tuning(X_train, y_train, cv, pipeline, param_dist, n_iter=100):
+def model_hyperparameter_tuning(
+    X_train,
+    y_train,
+    cv,
+    pipeline,
+    param_dist,
+    n_iter=100,
+    verbose_features=None,   # e.g. ['n_estimators', 'max_depth']
+    verbose_metric="mae",    # one of {'mae','mse','r2'}
+    verbose_plot=True,
+    verbose_top_n=20,
+):
     """
-    Helper for RandomizedSearchCV with consistent scoring output.
+    Helper for RandomizedSearchCV with consistent scoring output + optional plots.
 
-    Parameters
-    ----------
-    X_train, y_train:
-        Training data (already split; no leakage handling is done here).
-    pipeline:
-        sklearn Pipeline (should include cleaning/imputation/feature engineering).
-    param_dist:
-        dict of parameter distributions for RandomizedSearchCV.
-    n_iter:
-        number of random hyperparameter combinations.
-    splits:
-        number of CV folds (KFold).
-
-    Returns
-    -------
-    best_estimator_ : fitted pipeline
-    model_random : RandomizedSearchCV object (fitted)
-    model_scores : dict with train/val metrics
+    Notes on verbose_features
+    -------------------------
+    - You can pass either full param names (e.g. 'model__n_estimators')
+      or short names (e.g. 'n_estimators'). Short names will be resolved by suffix.
+    - If you pass 1 feature: plot val_metric vs that feature
+    - If you pass 2 features: plot val_metric vs feature[0], one line per feature[1] value
     """
 
-    # Randomized search setup
+    if verbose_features is None:
+        verbose_features = []
+
+    # --- Randomized search setup ---
     model_random = RandomizedSearchCV(
         estimator=pipeline,
         param_distributions=param_dist,
-        n_iter=n_iter,  # number of different hyperparameter combinations that will be randomly sampled and evaluated (more iterations = more thorough search but longer runtime)
+        n_iter=n_iter,
         scoring={"mae": "neg_mean_absolute_error", "mse": "neg_mean_squared_error", "r2": "r2"},
-        refit="mae",  # Refit the best model based on MAE on the whole training set
+        refit="mae",
         cv=cv,
         n_jobs=-1,
         random_state=42,
@@ -2109,6 +2108,7 @@ def model_hyperparameter_tuning(X_train, y_train, cv, pipeline, param_dist, n_it
     # Fit the search
     model_random.fit(X_train, y_train)
 
+    # --- metrics summary (same as before) ---
     val_mae = -model_random.cv_results_["mean_test_mae"][model_random.best_index_]
     val_mse = -model_random.cv_results_["mean_test_mse"][model_random.best_index_]
     val_rmse = np.sqrt(val_mse)
@@ -2138,5 +2138,107 @@ def model_hyperparameter_tuning(X_train, y_train, cv, pipeline, param_dist, n_it
     print(f"RMSE: {val_rmse:.4f}")
     print(f"R²: {val_r2:.4f}")
     print("Best Model params:", model_random.best_params_)
+
+    # --- verbose: build results_df + plots ---
+    if verbose_features and verbose_plot:
+        results_df = pd.DataFrame(model_random.cv_results_)
+
+        # expand "params" dict into real columns
+        params_df = pd.json_normalize(results_df["params"])
+        results_df = pd.concat([results_df.drop(columns=["params"]), params_df], axis=1)
+
+        def _metric_values(df: pd.DataFrame, metric: str) -> pd.Series:
+            metric = metric.lower()
+            if metric == "mae":
+                return -df["mean_test_mae"]
+            if metric == "mse":
+                return -df["mean_test_mse"]
+            if metric == "r2":
+                return df["mean_test_r2"]
+            raise ValueError("verbose_metric must be one of {'mae','mse','r2'}")
+
+        def _resolve_param_col(short_or_full: str, cols: list[str]) -> str:
+            if short_or_full in cols:
+                return short_or_full
+            # allow passing 'n_estimators' even if the column is 'model__n_estimators'
+            matches = [c for c in cols if c.endswith(f"__{short_or_full}")]
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                raise ValueError(
+                    f"Ambiguous verbose feature '{short_or_full}'. Matches: {matches}. "
+                    f"Pass the full param name instead."
+                )
+            raise ValueError(
+                f"Could not find hyperparameter '{short_or_full}' in cv_results_. "
+                f"Available params: {[c for c in cols if '__' in c][:30]} ..."
+            )
+
+        y = _metric_values(results_df, verbose_metric)
+        results_df["_val_metric_"] = y
+
+        # show top trials table
+        rep_cols = ["rank_test_mae", "mean_test_mae", "mean_test_mse", "mean_test_r2"]
+        rep_cols = [c for c in rep_cols if c in results_df.columns]
+        show_cols = rep_cols + [_resolve_param_col(f, results_df.columns.tolist()) for f in verbose_features[:2]]
+        show_cols = list(dict.fromkeys(show_cols))  # de-dupe, keep order
+
+        _print_section(f"RandomizedSearchCV verbose (top {verbose_top_n} by MAE)")
+        _maybe_display(
+            results_df.sort_values("rank_test_mae", ascending=True)[show_cols].head(verbose_top_n),
+            max_rows=verbose_top_n,
+        )
+
+        # plotting
+        fcols = results_df.columns.tolist()
+        f1 = _resolve_param_col(verbose_features[0], fcols)
+        f2 = _resolve_param_col(verbose_features[1], fcols) if len(verbose_features) >= 2 else None
+
+        def _is_numeric_series(s: pd.Series) -> bool:
+            return pd.api.types.is_numeric_dtype(s)
+
+        fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+
+        if f2 is None:
+            # group duplicates (randomized search can repeat values)
+            plot_df = results_df[[f1, "_val_metric_"]].dropna().copy()
+            if _is_numeric_series(plot_df[f1]):
+                plot_df = plot_df.groupby(f1, as_index=False)["_val_metric_"].mean().sort_values(f1)
+            else:
+                plot_df = plot_df.groupby(f1, as_index=False)["_val_metric_"].mean()
+            ax.plot(plot_df[f1].astype(str) if not _is_numeric_series(plot_df[f1]) else plot_df[f1],
+                    plot_df["_val_metric_"], marker="o", linewidth=2, markersize=6)
+            ax.set_xlabel(f1)
+        else:
+            plot_df = results_df[[f1, f2, "_val_metric_"]].dropna().copy()
+
+            # plot one line per f2 value
+            for val, g in plot_df.groupby(f2):
+                gg = g.copy()
+                if _is_numeric_series(gg[f1]):
+                    gg = gg.groupby(f1, as_index=False)["_val_metric_"].mean().sort_values(f1)
+                    ax.plot(gg[f1], gg["_val_metric_"], marker="o", linewidth=2, markersize=6, label=f"{f2}={val}")
+                else:
+                    gg = gg.groupby(f1, as_index=False)["_val_metric_"].mean()
+                    ax.plot(gg[f1].astype(str), gg["_val_metric_"], marker="o", linewidth=2, markersize=6, label=f"{f2}={val}")
+
+            ax.set_xlabel(f1)
+            ax.legend(fontsize=10)
+
+        ax.set_ylabel(f"Validation {verbose_metric.upper()}")
+        ax.set_title(f"Randomized Search: hyperparameter impact on validation {verbose_metric.upper()}",
+                     fontsize=13, fontweight="bold")
+        ax.grid(True, alpha=0.3)
+
+        # optional log-scale heuristic for typical params like C / alpha / learning_rate
+        if _is_numeric_series(results_df[f1]):
+            xvals = results_df[f1].dropna().astype(float)
+            if len(xvals) > 0 and xvals.min() > 0:
+                ratio = float(xvals.max() / max(xvals.min(), 1e-12))
+                if ratio >= 100:  # "looks like log-scale territory"
+                    ax.set_xscale("log")
+
+        plt.tight_layout()
+        plt.show()
 
     return model_random.best_estimator_, model_random, model_scores
