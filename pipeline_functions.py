@@ -1467,10 +1467,6 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
     def transform(self, X):
         X = X.copy()
         before_cols = set(X.columns)
-        # Available num features:
-        # orig_numeric_features = ["year", "mileage", "tax", "mpg", "engineSize", "previousOwners"] # though previousOwners has now correlations
-        # orig_categorical_features = ["brand", "model", "transmission", "fuelType"]
-        # unused_features = ['hasDamage', 'paintQuality']
 
         # 1. Base Feature Creation:
         #       - Car Age - Newer cars usually have higher prices, models prefer linear features
