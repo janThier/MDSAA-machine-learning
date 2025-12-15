@@ -300,6 +300,7 @@ class DebugTransformer(BaseEstimator, TransformerMixin):
                 print(f"\nFirst {self.n_rows} rows:")
                 display(X.head(self.n_rows))
                 display(X.describe(include="all").T)
+                display(X.info())
                 if self.y_data_profiling:
                     if ProfileReport is None:
                         print("\nProfileReport not available (ydata_profiling not installed).")
@@ -1916,6 +1917,83 @@ class MutualInfoThresholdSelector(BaseEstimator, TransformerMixin):
         if input_features is None:
             return np.array([f"x{i}" for i in range(len(self.mask_))], dtype=object)[self.mask_]
         return np.array(input_features, dtype=object)[self.mask_]
+
+
+
+################################################################################
+# Model Setup and Evaluation
+################################################################################
+
+
+def create_model_pipe(prepro_pipe, model):
+    # Clone preprocessor and model just to ensure that no state is shared between different model pipelines
+    prepro_pipe_clone = clone(prepro_pipe)
+    model_clone = clone(model)
+    model_pipe = Pipeline([
+        ("preprocess", prepro_pipe_clone),
+        ("model", model_clone),
+    ])
+    return model_pipe
+
+def get_cv_results(models, X_train, y_train, cv, rs):
+
+    results = []
+
+    for name, model in {**models}.items():
+        print(f"Fitting {name} with cross-validation...")
+        
+        # Use same cross-validation setup for all models and same split as later in hyperparameter tuning
+        cv_results = cross_validate(
+            model, 
+            X_train, 
+            y_train,
+            cv=cv,
+            scoring={
+                'neg_mae': 'neg_mean_absolute_error',
+                'neg_mse': 'neg_mean_squared_error',
+                'r2': 'r2'
+            },
+            return_train_score=True,
+            n_jobs=-1,
+            verbose=0,
+        )
+        
+        # Calculate mean metrics across folds
+        mae = -cv_results['test_neg_mae'].mean().round(4)
+        std_mae = cv_results['test_neg_mae'].std().round(4)
+        rmse = np.sqrt(-cv_results['test_neg_mse'].mean()).round(4)
+        r2 = cv_results['test_r2'].mean().round(4)
+        train_mae = -cv_results['train_neg_mae'].mean().round(4)
+        train_std_mae = cv_results['train_neg_mae'].std().round(4)
+        train_rmse = np.sqrt(-cv_results['train_neg_mse'].mean()).round(4)
+        train_r2 = cv_results['train_r2'].mean().round(4)
+        
+        results.append({
+            "model": name,
+            "preprocessing": "original" if "orig" in name else "optimized",
+            "val_MAE": mae,
+            "std_MAE": std_mae,
+            "val_RMSE": rmse,
+            "val_R2": r2,
+            "train_MAE": train_mae,
+            "train_std_MAE": train_std_mae,
+            "train_RMSE": train_rmse,
+            "train_R2": train_r2
+
+        })
+        print(f"{name}: CV Performance on val:")
+        print(f"val_MAE:  {mae:,.4f}")
+        print(f"val_RMSE: {rmse:,.4f}")
+        print(f"val_R2:   {r2:,.4f}")
+        print(f"Completed {name}")
+
+    results_df = (
+        pd.DataFrame(results)
+        .sort_values(["preprocessing", "val_MAE"])
+        .reset_index(drop=True)
+    )
+    
+    return results_df
 
 
 ################################################################################
