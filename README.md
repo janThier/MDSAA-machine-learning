@@ -59,7 +59,6 @@ All model selection and tuning followed a consistent 5-fold cross-validation pro
 .
 ├─ group05_exploratory_data_analysis.ipynb     # EDA + insights driving preprocessing choices
 ├─ group05_main_notebook.ipynb                 # End-to-end training, CV, tuning, submission creation
-├─ ABSTRACT.ipynb                              # Abstract + project narrative
 ├─ pipeline_functions.py                       # Custom sklearn transformers + pipeline utilities
 ├─ visualization_functions.py                  # Model comparison tables/plots
 ├─ app.py                                      # Open-ended: inference interface (uses saved pipeline)
@@ -116,14 +115,13 @@ Run the final submission section in `group05_main_notebook.ipynb` to write a CSV
 ### Pipeline (high level)
 ```mermaid
 flowchart LR
-  A[Raw input] --> B[CarDataCleaner - canonicalize categories, fix ranges, robust typing]
-  B --> C[OutlierHandler - winsorization or clipping, leakage safe]
-  C --> D[GroupImputer - hierarchical segment aware imputation]
-  D --> E[CarFeatureEngineer - depreciation, ratios, interactions, segment positioning]
-  E --> F[Preprocessing - ColumnTransformer: log, scaling, OHE, target encoding]
-  F --> G[Feature Selection - VT + majority vote selectors]
-  G --> H[Model - HistGradientBoost or RandomForest tuned]
-  H --> I[Predictions]
+A[Raw input - df_cars_train] --> B[CarDataCleaner - canonicalize categories, fix ranges, robust typing]
+B --> C[GroupImputer - hierarchical segment aware imputation]
+C --> D[CarFeatureEngineer - depreciation, ratios, interactions, segment positioning]
+D --> E[Preprocessing - ColumnTransformer: log skewed, robust scaling, OHE, mean/median target encoding]
+E --> F[Feature Selection - VarianceThreshold + majority vote selectors]
+F --> G[Model Setup]
+
 ```
 
 ### Design rules (CV correctness)
