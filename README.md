@@ -173,9 +173,15 @@ print(y_pred[:10])
 ---
 
 ## Open-ended section
+
+The `ML Cars 4 You` Web Application is hosted live: 
+
+**[Click here to open the ML Cars 4 You App](https://ml-cars-4-you.streamlit.app)**
+
 `app.py` provides an inference interface using the saved pipeline for interactive predictions.
 
 Run depending on implementation:
+
 ```bash
 python app.py
 ```
@@ -184,6 +190,9 @@ or, if Streamlit-based:
 ```bash
 streamlit run app.py
 ```
+
+
+
 
 ---
 
