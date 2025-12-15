@@ -111,12 +111,26 @@ MODEL_MAP = {
     "polo": ["polo", "pol"],
     "tiguan": ["tiguan", "tigua", "tiguan allspace", "tiguan allspac"],
     "touran": ["touran", "toura"],
+    "tourneo connect": ["tourneo connect"], 
     "up": ["up", "u"],
     "sharan": ["sharan", "shara"],
-    "scirocco": ["scirocco", "sciroc"],
+    "scirocco": ["scirocco", "sciroc", "scirocc"],
     "amarok": ["amarok", "amaro"],
     "arteon": ["arteon", "arteo"],
     "beetle": ["beetle", "beetl"],
+    "fox": ["fox"],
+    "california": ["california"],
+    "t-roc": ["t-roc", "t-ro", "t roc"],
+    "t-cross": ["t-cross", "t-cros", "t cross"],
+    "touareg": ["touareg", "touare", "touare g"],
+    "jetta": ["jetta"],
+    "cc": ["cc"],
+    "eos": ["eos"],
+    "caravelle": ["caravelle", "caravell"], 
+    "caddy": ["caddy"],
+    "caddy life": ["caddy life"],
+    "caddy maxi": ["caddy maxi"],
+    "caddy maxi life": ["caddy maxi life", "caddy maxi lif"], 
 
     # Toyota
     "yaris": ["yaris", "yari"],
@@ -126,13 +140,23 @@ MODEL_MAP = {
     "auris": ["auris", "auri"],
     "avensis": ["avensis", "avens"],
     "c-hr": ["c-hr", "chr", "c-h"],
-    "verso": ["verso", "verso-s"],
+    "verso": ["verso", "verso-s", "vers"],
     "hilux": ["hilux", "hilu"],
     "land cruiser": ["land cruiser", "land cruise"],
+    "prius": ["prius"],
+    "proace verso": ["proace verso"],
+    "gt86": ["gt86"],
+    "supra": ["supra"],
+    "camry": ["camry"],
+    "urban cruiser": ["urban cruiser", "urban cruise"],
+    "iq": ["iq"],  
+    "shuttle": ["shuttle"],  
 
     # Audi
     "a_unknown": ["a_unknown"],
+    "q_unknown": ["q_unknown"],
     "a1": ["a1", "a 1"],
+    "a2": ["a2", "a 2"],
     "a3": ["a3", "a 3"],
     "a4": ["a4", "a 4"],
     "a5": ["a5", "a 5"],
@@ -144,8 +168,18 @@ MODEL_MAP = {
     "q5": ["q5", "q 5"],
     "q7": ["q7", "q 7"],
     "q8": ["q8"],
+    "sq5": ["sq5"],
+    "sq7": ["sq7"],
     "tt": ["tt"],
     "r8": ["r8", "r 8"],
+    "rs3": ["rs3"],
+    "rs4": ["rs4"],
+    "rs5": ["rs5"],
+    "rs6": ["rs6"],
+    "s3": ["s3"],
+    "s4": ["s4"],
+    "s5": ["s5"],
+    "s8": ["s8"],
 
     # Ford
     "fiesta": ["fiesta", "fiest"],
@@ -153,15 +187,24 @@ MODEL_MAP = {
     "mondeo": ["mondeo", "monde"],
     "kuga": ["kuga", "kug"],
     "ecosport": ["ecosport", "eco sport", "ecospor"],
-    "puma": ["puma"],
+    "puma": ["puma"],  
     "edge": ["edge", "edg"],
     "s-max": ["s-max", "s-ma", "smax"],
     "c-max": ["c-max", "c-ma", "cmax"],
     "b-max": ["b-max", "b-ma", "bmax"],
     "ka+": ["ka+", "ka", "streetka"],
+    "fusion": ["fusion"],
+    "galaxy": ["galaxy", "galax"],
+    "tourneo custom": ["tourneo custom", "tourneo custo"],
+    "grand tourneo connect": ["grand tourneo connect", "grand tourneo connec"],
+    "mustang": ["mustang"],
+    "ranger": ["ranger"],
+    "escort": ["escort"],
+    "grand c-max": ["grand c-max", "grand c-ma"],
+    "rapid": ["rapid", "rapi"],
 
     # BMW
-    "1 series": ["1 series", "1 serie", "1 ser", "1series"],
+     "1 series": ["1 series", "1 serie", "1 ser", "1series"],
     "2 series": ["2 series", "2 serie", "2series"],
     "3 series": ["3 series", "3 serie", "3series"],
     "4 series": ["4 series", "4 serie", "4series"],
@@ -169,6 +212,7 @@ MODEL_MAP = {
     "6 series": ["6 series", "6 serie", "6series"],
     "7 series": ["7 series", "7 serie", "7series"],
     "8 series": ["8 series", "8 serie", "8series"],
+    "x_unknown": ["x_unknown"],
     "x1": ["x1"],
     "x2": ["x2"],
     "x3": ["x3"],
@@ -178,10 +222,15 @@ MODEL_MAP = {
     "x7": ["x7"],
     "z3": ["z3"],
     "z4": ["z4"],
+    "m2": ["m2"],
     "m3": ["m3"],
     "m4": ["m4"],
     "m5": ["m5"],
     "m6": ["m6"],
+    "i1": ["i1"],  
+    "i2": ["i2"],
+    "i3": ["i3"],
+    "i8": ["i8"],
 
     # Skoda
     "fabia": ["fabia", "fabi"],
@@ -191,21 +240,30 @@ MODEL_MAP = {
     "karoq": ["karoq", "karo"],
     "kodiaq": ["kodiaq", "kodia", "kodi"],
     "kamiq": ["kamiq", "kami"],
-    "yeti": ["yeti", "yeti outdoor", "yeti outdoo"],
+    "yeti": ["yeti", "yeti outdoor", "yeti outdoo", "yet"],
+    "citigo": ["citigo", "citig"],
+    "roomster": ["roomster", "roomste"], 
 
     # Opel
-    "astra": ["astra", "astr"],
+    "astra": ["astra", "astr", "gtc"],
     "corsa": ["corsa", "cors"],
     "insignia": ["insignia", "insigni"],
     "mokka": ["mokka", "mokk", "mokka x", "mokkax"],
     "zafira": ["zafira", "zafir"],
+    "zafira tourer": ["zafira tourer", "zafira toure"],
     "meriva": ["meriva", "meriv"],
-    "adam": ["adam", "ad"],
+    "adam": ["adam", "ad", "ada"],
     "vectra": ["vectra", "vectr"],
     "antara": ["antara", "anta"],
     "combo life": ["combo life", "combo lif"],
     "grandland x": ["grandland x", "grandland"],
     "crossland x": ["crossland x", "crossland"],
+    "cascada": ["cascada"],
+    "ampera": ["ampera"],
+    "tigra": ["tigra"],
+    "vivaro": ["vivaro"],
+    "viva": ["viva", "viv"],
+    "agila": ["agila"],
 
     # Mercedes
     "a class": ["a class", "a clas", "a-class"],
@@ -213,18 +271,23 @@ MODEL_MAP = {
     "c class": ["c class", "c clas", "c-class"],
     "e class": ["e class", "e clas", "e-class"],
     "s class": ["s class", "s clas", "s-class"],
-    "glc class": ["glc class", "glc clas"],
+    "glc class": ["glc class"], #"glc clas"], to show that FUZZY works
     "gle class": ["gle class", "gle clas"],
     "gla class": ["gla class", "gla clas"],
     "cls class": ["cls class", "cls clas"],
     "glb class": ["glb class"],
-    "gls class": ["gls class"],
-    "m class": ["m class"],
-    "sl class": ["sl class"],
-    "cl class": ["cl class"],
-    "v class": ["v class"],
-    "x-class": ["x-class"],
+    "gls class": ["gls class", "gls clas"],
+    "gl class": ["gl class", "gl clas"],
+    "cla class": ["cla class"],
+    "m class": ["m class", "m clas"],
+    "sl class": ["sl class", "sl clas", "sl"],  
+    "cl class": ["cl class", "cl clas"],
+    "clc class": ["clc class"],
+    "v class": ["v class", "v clas"],
+    "x-class": ["x-class", "x-clas"],
     "g class": ["g class"],
+    "slk": ["slk"],
+    "clk": ["clk"],
 
     # Hyundai
     "i10": ["i10", "i 10"],
@@ -232,27 +295,65 @@ MODEL_MAP = {
     "i30": ["i30", "i 30"],
     "i40": ["i40", "i 40"],
     "ioniq": ["ioniq", "ioni"],
-    "ix20": ["ix20", "ix 20"],
+    "ix20": ["ix20", "ix 20", "ix2"],  
     "ix35": ["ix35", "ix 35"],
     "kona": ["kona", "kon"],
     "tucson": ["tucson", "tucso"],
     "santa fe": ["santa fe", "santa f"],
+    "getz": ["getz"],
+    "accent": ["accent"],
+    "i800": ["i800", "i80"],
+    "veloster": ["veloster", "veloste"],
+    "terracan": ["terracan"],
+
 }
+
 REVERSE_MODEL = {v.lower(): k for k, vals in MODEL_MAP.items() for v in vals}
 
 # model -> brand mapping: there are rows where model is filled but brand is not.
 # We can back-fill brand from model via this mapping.
 MODEL_TO_BRAND = {}
 for brand, models in {
-    "VW": ["golf", "passat", "polo", "tiguan", "touran", "up", "sharan", "scirocco", "amarok", "arteon", "beetle"],
-    "Toyota": ["yaris", "corolla", "aygo", "rav4", "auris", "avensis", "c-hr", "verso", "hilux", "land cruiser"],
-    "Audi": ["a_unknown", "a1", "a3", "a4", "a5", "a6", "a7", "a8", "q2", "q3", "q5", "q7", "q8", "tt", "r8"],
-    "Ford": ["fiesta", "focus", "mondeo", "kuga", "ecosport", "puma", "edge", "s-max", "c-max", "b-max", "ka+"],
-    "BMW": ["1 series", "2 series", "3 series", "4 series", "5 series", "6 series", "7 series", "8 series", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "z3", "z4", "m3", "m4", "m5", "m6"],
-    "Skoda": ["fabia", "octavia", "superb", "scala", "karoq", "kodiaq", "kamiq", "yeti"],
-    "Opel": ["astra", "corsa", "insignia", "mokka", "zafira", "meriva", "adam", "vectra", "antara", "combo life", "grandland x", "crossland x"],
-    "Mercedes": ["a class", "b class", "c class", "e class", "s class", "glc class", "gle class", "gla class", "cls class", "glb class", "gls class", "m class", "sl class", "cl class", "v class", "x-class", "g class"],
-    "Hyundai": ["i10", "i20", "i30", "i40", "ioniq", "ix20", "ix35", "kona", "tucson", "santa fe"],
+    "VW": [
+        "golf", "passat", "polo", "tiguan", "touran", "up", "sharan", "scirocco", "amarok", "arteon", "beetle", "fox",
+        "t-roc", "t-cross", "touareg", "jetta", "cc", "eos", "caravelle",
+        "caddy", "caddy life", "caddy maxi", "caddy maxi life", "california"
+    ],
+    "Toyota": [
+        "yaris", "corolla", "aygo", "rav4", "auris", "avensis", "c-hr", "verso", "hilux", "land cruiser",
+        "prius", "proace verso", "gt86", "supra", "camry", "urban cruiser", "iq", "shuttle",
+    ],
+    "Audi": [
+        "a_unknown", "q_unknown",
+        "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8",
+        "q2", "q3", "q5", "q7", "q8", "sq5", "sq7",
+        "tt", "r8", "rs3", "rs4", "rs5", "rs6", "s3", "s4", "s5", "s8",
+    ],
+    "Ford": [
+        "fiesta", "focus", "mondeo", "kuga", "ecosport", "puma", "edge", "s-max", "c-max", "b-max", "ka+", "fusion",
+        "galaxy", "tourneo custom", "tourneo connect", "grand tourneo connect", "mustang", "ranger", "escort",
+        "grand c-max", "rapid",
+    ],
+    "BMW": [
+        "1 series", "2 series", "3 series", "4 series", "5 series", "6 series", "7 series", "8 series",
+        "x_unknown", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "z3", "z4",
+        "m2", "m3", "m4", "m5", "m6",
+        "i1", "i2", "i3", "i8",
+    ],
+    "Skoda": ["fabia", "octavia", "superb", "scala", "karoq", "kodiaq", "kamiq", "yeti", "citigo", "roomster"],
+    "Opel": [
+        "astra", "corsa", "insignia", "mokka", "zafira", "zafira tourer", "meriva", "adam", "vectra", "antara",
+        "combo life", "grandland x", "crossland x", "cascada", "ampera", "tigra", "vivaro", "viva", "agila", "gtc",
+    ],
+    "Mercedes": [
+        "a class", "b class", "c class", "e class", "s class",
+        "glc class", "gle class", "gla class", "cls class", "glb class", "gls class", "gl class", "cla class",
+        "m class", "sl class", "cl class", "clc class", "v class", "x-class", "g class", "slk", "clk",
+    ],
+    "Hyundai": [
+        "i10", "i20", "i30", "i40", "ioniq", "ix20", "ix35", "kona", "tucson", "santa fe",
+        "getz", "accent", "i800", "veloster", "terracan",
+    ],
 }.items():
     for m in models:
         MODEL_TO_BRAND[m] = brand
@@ -326,7 +427,7 @@ class DebugTransformer(BaseEstimator, TransformerMixin):
 
 
 ################################################################################
-# Data Cleaning (CarDataCleaner)
+# Data Cleaning (CarDataCleaner)  -- FINAL VERSION
 ################################################################################
 
 class CarDataCleaner(BaseEstimator, TransformerMixin):
@@ -370,18 +471,24 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         handle_electric="other",  # {"keep","other","nan"}
         set_carid_index=False,    # keep False for pipeline stability
 
-        # fuzzy fallback (must be leakage-safe -> vocab learned in fit())
+        # STRICT model policy: accept ONLY static canonical keys as "valid"
+        strict_static_model_vocab=True,
+
+        # fuzzy fallback (very strict; only rescues obvious typos)
         use_fuzzy=True,
-        fuzzy_cutoff_brand=0.94,
-        fuzzy_cutoff_model=0.94,
-        fuzzy_cutoff_trans=0.94,
-        fuzzy_cutoff_fuel=0.94,
-        fuzzy_min_token_len=2,               # prevents "a" -> "a3" guessing
-        fuzzy_require_brand_for_model=True,  # model fuzzy restricted to brand vocab if possible
+        fuzzy_cutoff_brand=0.97,
+        fuzzy_cutoff_model=0.97,
+        fuzzy_cutoff_trans=0.97,
+        fuzzy_cutoff_fuel=0.97,
+        fuzzy_min_token_len=2,
+
+        # model-only “unique prefix” rescue (safe + makes fuzzy visible)
+        model_prefix_min_len=3,
+        fuzzy_require_brand_for_model=True,
 
         # verbosity controls
         verbose=False,
-        verbose_top_n=10,
+        verbose_top_n=15,
         verbose_plot=False,
     ):
         # numeric checks
@@ -398,6 +505,9 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         self.handle_electric = handle_electric
         self.set_carid_index = set_carid_index
 
+        # model strictness
+        self.strict_static_model_vocab = strict_static_model_vocab
+
         # fuzzy behavior
         self.use_fuzzy = use_fuzzy
         self.fuzzy_cutoff_brand = fuzzy_cutoff_brand
@@ -405,6 +515,8 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         self.fuzzy_cutoff_trans = fuzzy_cutoff_trans
         self.fuzzy_cutoff_fuel = fuzzy_cutoff_fuel
         self.fuzzy_min_token_len = fuzzy_min_token_len
+
+        self.model_prefix_min_len = model_prefix_min_len
         self.fuzzy_require_brand_for_model = fuzzy_require_brand_for_model
 
         # verbose
@@ -412,11 +524,12 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         self.verbose_top_n = verbose_top_n
         self.verbose_plot = verbose_plot
 
+
     # Helpers (string normalization)
     @staticmethod
     def _norm_str_series(s: pd.Series) -> pd.Series:
         """Lowercase + strip without turning NaN into the string 'nan'."""
-        return s.astype(str).str.strip().str.lower().replace('nan', np.nan)
+        return s.astype(str).str.strip().str.lower().replace("nan", np.nan)
 
     @staticmethod
     def _canon_map(series: pd.Series, reverse_map: dict, keep_unmapped: bool = False) -> pd.Series:
@@ -429,140 +542,75 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         keep_unmapped=True:
           - permissive mode: if token not in reverse_map -> keep normalized token
         """
-        s = series.astype(str).str.strip().str.lower().replace('nan', np.nan)
+        s = series.astype(str).str.strip().str.lower().replace("nan", np.nan)
         mapped = s.map(reverse_map)
-        if keep_unmapped:
-            return mapped.fillna(s)
-        return mapped
+        return mapped.fillna(s) if keep_unmapped else mapped
 
-    # Helpers (fuzzy matching)
     @staticmethod
     def _fuzzy_one(token: str, choices: list[str], cutoff: float) -> str | None:
-        """
-        Return the closest match from 'choices' if similarity >= cutoff.
-        Uses Python's stdlib difflib (fast, no extra dependency).
-        """
         tok = str(token).strip().lower()
         if tok == "" or tok == "<na>":
             return None
         match = get_close_matches(tok, choices, n=1, cutoff=cutoff)
         return match[0] if match else None
 
-    def _fuzzy_fill_missing(
-        self,
-        s: pd.Series,
-        raw_s: pd.Series,
-        choices: list[str],
-        cutoff: float,
-        col_name: str,
-        to_canonical=None,
-    ) -> pd.Series:
+    @staticmethod
+    def _unique_prefix_match(token: str, choices: list[str], min_len: int) -> str | None:
         """
-        Conservative fuzzy fill + audit trail:
-        - only fills NaNs in `s`
-        - uses raw_s as “what user originally typed”
-        - records raw -> matched pairs in self.fuzzy_matches_
-
-        Safety additions:
-        - never records/assigns identity matches (tok == match)
-        - choices are expected to be training-fold valid categories (learned in fit())
+        Safe model fuzzy:
+        - Accept only if token is a UNIQUE prefix of exactly one choice.
+        - This is why “pum -> puma” can work without enabling risky fuzzy.
         """
-        out = s.copy()
-        miss = out.isna()
+        tok = str(token).strip().lower()
+        if len(tok) < int(min_len):
+            return None
+        cands = [c for c in choices if c.startswith(tok)]
+        return cands[0] if len(cands) == 1 else None
 
-        if not miss.any() or not choices:
-            return out
 
-        records = []
-        for idx in out.index[miss]:
-            raw_tok = raw_s.loc[idx]
-            if pd.isna(raw_tok):
-                continue
-
-            tok = str(raw_tok).strip().lower()
-            if len(tok) < self.fuzzy_min_token_len:
-                continue
-
-            m = self._fuzzy_one(tok, choices, cutoff=cutoff)
-            if m is None:
-                continue
-
-            # do not do / report identity mappings
-            if m == tok:
-                # still leave as NaN here; GroupImputer will handle it
-                continue
-
-            out_val = to_canonical(m) if callable(to_canonical) else m
-            out.loc[idx] = out_val
-            records.append({"column": col_name, "raw": tok, "match": out_val})
-
-        if records:
-            self.fuzzy_matches_.extend(records)
-
-        return out
-
-    # fit (learn vocab on train fold only)
     def fit(self, X, y=None):
         """
-        Learn training-fold vocab for optional fuzzy fallback.
-        This keeps fuzzy matching leakage-safe during CV.
+        Learn training-fold vocab for optional fuzzy fallback (leakage-safe).
+        For this project we keep categorical fuzzy vocab STRICT and canonical.
         """
-        df = pd.DataFrame(X).copy()
-
-        # normalize schema so fit vocab matches transform behavior
-        if "Brand" in df.columns and "brand" not in df.columns:
-            df = df.rename(columns={"Brand": "brand"})
-
-        # store stable canonical vocab for low-cardinality fields (prevents garbage like 'ud' becoming a "valid choice")
         self.brand_vocab_ = BRAND_CANON_VOCAB
         self.trans_vocab_ = TRANS_CANON_VOCAB
         self.fuel_vocab_ = FUEL_CANON_VOCAB
 
-        # learn model vocab from the training fold (many categories, so use what is actually present)
-        if "model" in df.columns:
-            m_norm = self._norm_str_series(df["model"])
-            m_mapped = m_norm.map(REVERSE_MODEL).fillna(m_norm)
-            self.model_vocab_ = sorted(m_mapped.dropna().unique().tolist())
-        else:
-            self.model_vocab_ = []
+        # model vocab: strict static canonical keys (lowercase)
+        self.model_static_vocab_ = sorted([k.strip().lower() for k in MODEL_MAP.keys()])
+        static_set = set(self.model_static_vocab_)
 
-        # brand -> models vocab (safer fuzzy matching for model)
-        self.brand_to_models_ = {}
-        if "brand" in df.columns and "model" in df.columns:
-            # map brand strictly to canonical (unknown -> NaN), model permissive (unknown kept)
-            b = self._canon_map(df["brand"], REVERSE_BRAND, keep_unmapped=False)
-            m_norm = self._norm_str_series(df["model"])
-            m = m_norm.map(REVERSE_MODEL).fillna(m_norm)
-            tmp = pd.DataFrame({"brand": b, "model": m}).dropna()
-            for brand_val, g in tmp.groupby("brand"):
-                # store in lower-case because fuzzy choices are lower-case
-                self.brand_to_models_[str(brand_val).strip().lower()] = sorted(
-                    g["model"].astype(str).str.strip().str.lower().unique().tolist()
-                )
-
-        return self
-
-    # transform
-    def transform(self, X):
+        # brand -> model choices (only canonical models that are in static vocab)
         df = pd.DataFrame(X).copy()
-
-        # reset reports each transform call
-        self.clean_report_ = {
-            "numeric_new_nans": {},
-            "categorical_changes": {},
-            "notes": [],
-        }
-        self.fuzzy_matches_ = []
-
-        # column carID (set as index, has no duplicates) (in pipelines, keeping it as a column is often easier)
-        if self.set_carid_index and "carID" in df.columns:
-            df = df.set_index("carID")
-
-        # rename once here so the rest of the code can consistently use `brand`
         if "Brand" in df.columns and "brand" not in df.columns:
             df = df.rename(columns={"Brand": "brand"})
 
-        # rename once here so the rest of the code can consistently use `paintQuality`
+        self.brand_to_models_ = {}
+        if "brand" in df.columns and "model" in df.columns:
+            b = self._canon_map(df["brand"], REVERSE_BRAND, keep_unmapped=False)
+            m = self._canon_map(df["model"], REVERSE_MODEL, keep_unmapped=True).astype(str).str.strip().str.lower()
+            tmp = pd.DataFrame({"brand": b, "model": m}).dropna()
+            tmp = tmp[tmp["model"].isin(static_set)]
+
+            for brand_val, g in tmp.groupby("brand"):
+                self.brand_to_models_[str(brand_val).strip().lower()] = sorted(g["model"].unique().tolist())
+
+        return self
+
+
+    def transform(self, X):
+        df = pd.DataFrame(X).copy()
+
+        self.clean_report_ = {"numeric_new_nans": {}, "categorical_changes": {}, "notes": []}
+        self.fuzzy_matches_ = []
+
+        if self.set_carid_index and "carID" in df.columns:
+            df = df.set_index("carID")
+
+        if "Brand" in df.columns and "brand" not in df.columns:
+            df = df.rename(columns={"Brand": "brand"})
+
         if "paintQuality%" in df.columns and "paintQuality" not in df.columns:
             df = df.rename(columns={"paintQuality%": "paintQuality"})
 
@@ -570,8 +618,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         def _track_new_nans(col, before, after):
             before_na = int(pd.isna(before).sum())
             after_na = int(pd.isna(after).sum())
-            new_na = max(0, after_na - before_na)
-            self.clean_report_["numeric_new_nans"][col] = new_na
+            self.clean_report_["numeric_new_nans"][col] = max(0, after_na - before_na)
 
         if "year" in df.columns:
             before = df["year"].copy()
@@ -622,7 +669,6 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
             df["previousOwners"] = np.floor(df["previousOwners"]).astype("float64")
             _track_new_nans("previousOwners", before, df["previousOwners"])
 
-        # column hasDamage (we cannot safely assume NaN means damaged or not damaged)
         if "hasDamage" in df.columns:
             before = df["hasDamage"].copy()
             df["hasDamage"] = pd.to_numeric(df["hasDamage"], errors="coerce").astype("float64")
@@ -633,69 +679,80 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
             df = df.drop(columns=["paintQuality"])
 
         # CATEGORICAL COLUMNS
-        # The idea is always:
-        # - normalise case / whitespace
-        # - map known typos/variants into a canonical label using a reverse dict
-
-        # column brand: map all incorrect spellings to the right brand
         raw_brand = df["brand"].copy() if "brand" in df.columns else None
+        raw_trans = df["transmission"].copy() if "transmission" in df.columns else None
+        raw_fuel = df["fuelType"].copy() if "fuelType" in df.columns else None
 
+        # brand
         if "brand" in df.columns:
             before = df["brand"].copy()
             df["brand"] = self._canon_map(df["brand"], REVERSE_BRAND, keep_unmapped=False)
-
-            # count changes
             changed = self._norm_str_series(before).fillna("__nan__") != self._norm_str_series(df["brand"]).fillna("__nan__")
             self.clean_report_["categorical_changes"]["brand_changed"] = int(changed.sum())
 
-        # Store raw model token BEFORE deterministic mapping (used for special cases + optional fuzzy fallback)
+        # Store raw model token BEFORE deterministic mapping
         if "model" in df.columns:
             df["_raw_model"] = self._norm_str_series(df["model"])
         else:
             df["_raw_model"] = pd.Series([np.nan] * len(df), index=df.index)
 
-        # If brand is Audi and model token is exactly "a", we do not want do guessing (a1/a3/a4/...) -> map to dedicated category a_unknown.
+        # special buckets for single-letter tokens (only if brand known)
         if "brand" in df.columns and "model" in df.columns:
             audi_a_mask = (df["brand"] == "Audi") & (df["_raw_model"] == "a")
             df.loc[audi_a_mask, "model"] = "a_unknown"
             if audi_a_mask.any():
                 self.clean_report_["notes"].append(f"Audi model 'a' mapped to 'a_unknown' for {int(audi_a_mask.sum())} rows.")
 
-        # column model: map all incorrect spellings to the right model
+            audi_q_mask = (df["brand"] == "Audi") & (df["_raw_model"] == "q")
+            df.loc[audi_q_mask, "model"] = "q_unknown"
+            if audi_q_mask.any():
+                self.clean_report_["notes"].append(f"Audi model 'q' mapped to 'q_unknown' for {int(audi_q_mask.sum())} rows.")
+
+            bmw_x_mask = (df["brand"] == "BMW") & (df["_raw_model"] == "x")
+            df.loc[bmw_x_mask, "model"] = "x_unknown"
+            if bmw_x_mask.any():
+                self.clean_report_["notes"].append(f"BMW model 'x' mapped to 'x_unknown' for {int(bmw_x_mask.sum())} rows.")
+
+        # model deterministic + strict vocab gating
         if "model" in df.columns:
             before = df["model"].copy()
 
-            # Important: do NOT overwrite the Audi special case a_unknown
-            model_is_unknown_bucket = df["model"].astype(str) == "a_unknown"
-
-            # deterministic canonicalization, but do NOT delete unknown models (we validate against training vocab below)
+            model_is_bucket = df["model"].astype(str).isin(["a_unknown", "q_unknown", "x_unknown"])
             mapped = self._canon_map(df["model"], REVERSE_MODEL, keep_unmapped=True)
-            df.loc[~model_is_unknown_bucket, "model"] = mapped.loc[~model_is_unknown_bucket]
+            df.loc[~model_is_bucket, "model"] = mapped.loc[~model_is_bucket]
 
-            # enforce "valid categories" = categories seen in the training fold (vocab learned in fit)
-            if getattr(self, "model_vocab_", None):
+            if self.strict_static_model_vocab and getattr(self, "model_static_vocab_", None):
                 m_norm = self._norm_str_series(df["model"])
-                valid_mask = m_norm.isna() | m_norm.isin(self.model_vocab_) | model_is_unknown_bucket
-                # keep current values only if valid, else set to NaN (GroupImputer will handle)
-                df.loc[~valid_mask, "model"] = np.nan
+                static_set = set(self.model_static_vocab_)
+                valid_mask = m_norm.isna() | m_norm.isin(static_set) | model_is_bucket
+
+                # never guess a/q/x if brand missing
+                tok_bad = m_norm.isin(["a", "q", "x"]) & df.get("brand", pd.Series([np.nan] * len(df))).isna()
+                if tok_bad.any():
+                    df.loc[tok_bad, "model"] = np.nan
+                    self.clean_report_["notes"].append(
+                        f"Model token in {{'a','q','x'}} with missing brand forced to NaN: {int(tok_bad.sum())} rows."
+                    )
+
+                n_forced = int((~valid_mask).sum())
+                if n_forced > 0:
+                    df.loc[~valid_mask, "model"] = np.nan
+                    self.clean_report_["notes"].append(
+                        f"Model tokens not in static vocab forced to NaN: {n_forced} rows (to enable fuzzy/imputation)."
+                    )
 
             changed = self._norm_str_series(before).fillna("__nan__") != self._norm_str_series(df["model"]).fillna("__nan__")
             self.clean_report_["categorical_changes"]["model_changed"] = int(changed.sum())
 
-        # column transmission
-        raw_trans = df["transmission"].copy() if "transmission" in df.columns else None
-
+        # transmission
         if "transmission" in df.columns:
             before = df["transmission"].copy()
             df["transmission"] = self._canon_map(df["transmission"], REVERSE_TRANS, keep_unmapped=False)
             df.loc[df["transmission"] == "Unknown", "transmission"] = np.nan
-
             changed = self._norm_str_series(before).fillna("__nan__") != self._norm_str_series(df["transmission"]).fillna("__nan__")
             self.clean_report_["categorical_changes"]["transmission_changed"] = int(changed.sum())
 
-        # column fuelType
-        raw_fuel = df["fuelType"].copy() if "fuelType" in df.columns else None
-
+        # fuelType
         if "fuelType" in df.columns:
             before = df["fuelType"].copy()
             df["fuelType"] = self._canon_map(df["fuelType"], REVERSE_FUEL, keep_unmapped=False)
@@ -708,63 +765,70 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
             changed = self._norm_str_series(before).fillna("__nan__") != self._norm_str_series(df["fuelType"]).fillna("__nan__")
             self.clean_report_["categorical_changes"]["fuelType_changed"] = int(changed.sum())
 
-        # FUZZY FALLBACK
-        # Only try to fill values that are STILL missing after deterministic mapping.
-        # This avoids fuzzy overriding correct deterministic mappings.
+        # FUZZY (only fills NaNs)
         if self.use_fuzzy:
+            # brand/trans/fuel: only fill NaNs with canonical vocab (very strict)
             if "brand" in df.columns and getattr(self, "brand_vocab_", []) and raw_brand is not None:
-                df["brand"] = self._fuzzy_fill_missing(
-                    df["brand"],
-                    raw_brand,
-                    self.brand_vocab_,
-                    self.fuzzy_cutoff_brand,
-                    "brand",
-                    to_canonical=lambda m: BRAND_NORM_TO_CANON.get(str(m).lower(), m),
-                )
+                miss = df["brand"].isna() & raw_brand.notna()
+                for idx in df.index[miss]:
+                    tok = str(raw_brand.loc[idx]).strip().lower()
+                    if len(tok) < self.fuzzy_min_token_len:
+                        continue
+                    m = self._fuzzy_one(tok, self.brand_vocab_, cutoff=self.fuzzy_cutoff_brand)
+                    if m is not None and m != tok:
+                        df.loc[idx, "brand"] = BRAND_NORM_TO_CANON.get(str(m).lower(), m)
+                        self.fuzzy_matches_.append({"column": "brand", "raw": tok, "match": df.loc[idx, "brand"]})
 
             if "transmission" in df.columns and getattr(self, "trans_vocab_", []) and raw_trans is not None:
-                df["transmission"] = self._fuzzy_fill_missing(
-                    df["transmission"],
-                    raw_trans,
-                    self.trans_vocab_,
-                    self.fuzzy_cutoff_trans,
-                    "transmission",
-                    to_canonical=lambda m: TRANS_NORM_TO_CANON.get(str(m).lower(), m),
-                )
+                miss = df["transmission"].isna() & raw_trans.notna()
+                for idx in df.index[miss]:
+                    tok = str(raw_trans.loc[idx]).strip().lower()
+                    if len(tok) < self.fuzzy_min_token_len:
+                        continue
+                    m = self._fuzzy_one(tok, self.trans_vocab_, cutoff=self.fuzzy_cutoff_trans)
+                    if m is not None and m != tok:
+                        df.loc[idx, "transmission"] = TRANS_NORM_TO_CANON.get(str(m).lower(), m)
+                        self.fuzzy_matches_.append({"column": "transmission", "raw": tok, "match": df.loc[idx, "transmission"]})
 
             if "fuelType" in df.columns and getattr(self, "fuel_vocab_", []) and raw_fuel is not None:
-                df["fuelType"] = self._fuzzy_fill_missing(
-                    df["fuelType"],
-                    raw_fuel,
-                    self.fuel_vocab_,
-                    self.fuzzy_cutoff_fuel,
-                    "fuelType",
-                    to_canonical=lambda m: FUEL_NORM_TO_CANON.get(str(m).lower(), m),
-                )
+                miss = df["fuelType"].isna() & raw_fuel.notna()
+                for idx in df.index[miss]:
+                    tok = str(raw_fuel.loc[idx]).strip().lower()
+                    if len(tok) < self.fuzzy_min_token_len:
+                        continue
+                    m = self._fuzzy_one(tok, self.fuel_vocab_, cutoff=self.fuzzy_cutoff_fuel)
+                    if m is not None and m != tok:
+                        df.loc[idx, "fuelType"] = FUEL_NORM_TO_CANON.get(str(m).lower(), m)
+                        self.fuzzy_matches_.append({"column": "fuelType", "raw": tok, "match": df.loc[idx, "fuelType"]})
 
+            # model fuzzy: rescue only to static canonical keys (and preferably within-brand)
             if "model" in df.columns:
-                miss_model = df["model"].isna()
+                miss_model = df["model"].isna() & df["_raw_model"].notna()
                 if miss_model.any():
-                    records = []
                     for idx in df.index[miss_model]:
-                        raw_tok = df.loc[idx, "_raw_model"]
-                        if pd.isna(raw_tok) or len(str(raw_tok)) < self.fuzzy_min_token_len:
+                        tok = str(df.loc[idx, "_raw_model"]).strip().lower()
+                        if len(tok) < self.fuzzy_min_token_len:
                             continue
 
-                        raw_tok_l = str(raw_tok).strip().lower()
-
+                        # choices
                         if self.fuzzy_require_brand_for_model and "brand" in df.columns and pd.notna(df.loc[idx, "brand"]):
                             b = str(df.loc[idx, "brand"]).strip().lower()
                             choices = self.brand_to_models_.get(b, [])
+                            if not choices:
+                                choices = getattr(self, "model_static_vocab_", [])
                         else:
-                            choices = getattr(self, "model_vocab_", [])
+                            choices = getattr(self, "model_static_vocab_", [])
 
-                        m = self._fuzzy_one(raw_tok_l, choices, cutoff=self.fuzzy_cutoff_model)
-                        if m is not None and m != raw_tok_l:
+                        # 1) unique-prefix rescue
+                        m = self._unique_prefix_match(tok, choices, self.model_prefix_min_len)
+
+                        # 2) difflib rescue
+                        if m is None:
+                            m = self._fuzzy_one(tok, choices, cutoff=self.fuzzy_cutoff_model)
+
+                        if m is not None and m != tok:
                             df.loc[idx, "model"] = m
-                            records.append({"column": "model", "raw": raw_tok_l, "match": m})
-                    if records:
-                        self.fuzzy_matches_.extend(records)
+                            self.fuzzy_matches_.append({"column": "model", "raw": tok, "match": m})
 
         df = df.drop(columns=["_raw_model"], errors="ignore")
 
@@ -773,42 +837,39 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
             mask = df["brand"].isna() & df["model"].notna()
             df.loc[mask, "brand"] = df.loc[mask, "model"].map(MODEL_TO_BRAND)
 
-        # Fallback to ensure sklearn compatibility (convert all string dtypes to object and replace pd.NA with np.nan)
+        # sklearn compatibility
         for col in df.columns:
-            if str(df[col].dtype) == 'string':
-                # First replace pd.NA explicitly, then convert to object
-                df[col] = df[col].replace({pd.NA: np.nan}).astype('object')
+            if str(df[col].dtype) == "string":
+                df[col] = df[col].replace({pd.NA: np.nan}).astype("object")
 
         if self.verbose:
             _print_section("CarDataCleaner report")
 
-            # Numeric report
             if self.clean_report_["numeric_new_nans"]:
-                num_rep = pd.DataFrame(
-                    [{"column": k, "new_NaNs_created": v} for k, v in self.clean_report_["numeric_new_nans"].items()]
-                ).sort_values("new_NaNs_created", ascending=False)
+                num_rep = (
+                    pd.DataFrame([{"column": k, "new_NaNs_created": v} for k, v in self.clean_report_["numeric_new_nans"].items()])
+                    .sort_values("new_NaNs_created", ascending=False)
+                )
                 print("Numeric sanity checks (values set to missing because they were implausible):")
                 _maybe_display(num_rep, max_rows=self.verbose_top_n)
             else:
                 print("Numeric sanity checks: no new missing values were created.")
 
-            # Categorical report
             if self.clean_report_["categorical_changes"]:
-                cat_rep = pd.DataFrame(
-                    [{"field": k, "n_changed": v} for k, v in self.clean_report_["categorical_changes"].items()]
-                ).sort_values("n_changed", ascending=False)
+                cat_rep = (
+                    pd.DataFrame([{"field": k, "n_changed": v} for k, v in self.clean_report_["categorical_changes"].items()])
+                    .sort_values("n_changed", ascending=False)
+                )
                 print("\nCategorical corrections (typos/variants collapsed to stable labels):")
                 _maybe_display(cat_rep, max_rows=self.verbose_top_n)
             else:
                 print("\nCategorical corrections: no changes were made.")
 
-            # Notes (like Audi a->a_unknown)
             if self.clean_report_["notes"]:
                 print("\nSpecial rules applied:")
                 for n in self.clean_report_["notes"]:
                     print(f"- {n}")
 
-            # Fuzzy report
             if self.use_fuzzy:
                 if self.fuzzy_matches_:
                     fm = pd.DataFrame(self.fuzzy_matches_)
@@ -819,8 +880,15 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
                         .reset_index(name="count")
                         .sort_values(["column", "count"], ascending=[True, False])
                     )
+
+                    # Ensure “pum -> puma” shows up if it happened (even if not in top_n)
+                    demo_rows = summary[summary["pair"].str.contains(r"^pum\s+->\s+puma$", regex=True, na=False)]
+                    head_rows = summary.head(self.verbose_top_n)
+                    if len(demo_rows) > 0 and not head_rows["pair"].str.contains(r"^pum\s+->\s+puma$", regex=True, na=False).any():
+                        head_rows = pd.concat([demo_rows, head_rows]).drop_duplicates(subset=["column", "pair"])
+
                     print("\nFuzzy matches performed (raw token -> chosen match):")
-                    _maybe_display(summary, max_rows=self.verbose_top_n)
+                    _maybe_display(head_rows, max_rows=self.verbose_top_n)
 
                     if self.verbose_plot:
                         for col in summary["column"].unique():
