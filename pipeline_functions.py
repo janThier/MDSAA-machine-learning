@@ -31,13 +31,235 @@ from scipy.stats import spearmanr
 
 from difflib import get_close_matches
 
-# !pip install ydata-profiling
-from ydata_profiling import ProfileReport
+# ydata-profiling is optional (do not crash the whole pipeline if missing)
+try:
+    from ydata_profiling import ProfileReport  # type: ignore
+except Exception:
+    ProfileReport = None
 
+from collections import Counter
+
+# Notebook-friendly display (falls back to print in scripts)
+try:
+    from IPython.display import display  # type: ignore
+except Exception:
+    display = None
+
+# Plots used in verbose mode
+import matplotlib.pyplot as plt
+
+
+def _print_section(title: str):
+    print("\n" + "=" * 80)
+    print(title)
+    print("=" * 80)
+
+
+def _maybe_display(df_or_obj, max_rows=10):
+    """Show a small table in notebooks; fall back to print in scripts."""
+    if display is not None:
+        display(df_or_obj if not hasattr(df_or_obj, "head") else df_or_obj.head(max_rows))
+    else:
+        print(df_or_obj if not hasattr(df_or_obj, "head") else df_or_obj.head(max_rows))
 
 
 ################################################################################
-# Debug Transformer 
+# Canonical maps (shared between fit() and transform())
+################################################################################
+
+BRAND_MAP = {
+    "VW": ["VW", "V", "W", "vw", "v", "w"],
+    "Toyota": ["Toyota", "TOYOTA", "Toyot", "toyota", "oyota", "TOYOT", "OYOTA"],
+    "Audi": ["Audi", "AUDI", "A", "udi", "Aud", "audi", "AUD", "UDI"],
+    "Ford": ["Ford", "FORD", "For", "ord", "for", "ORD", "or", "FOR"],
+    "BMW": ["BMW", "bmw", "MW", "BM", "mw"],
+    "Skoda": ["Skoda", "SKODA", "Skod", "koda", "SKOD", "kod", "skoda", "skod", "KODA"],
+    "Opel": ["Opel", "OPEL", "Ope", "opel", "OPE", "pel", "pe", "PEL", "ope"],
+    "Mercedes": ["Mercedes", "MERCEDES", "mercedes", "Mercede", "ercedes", "ERCEDES", "MERCEDE", "ercede", "mercede"],
+    "Hyundai": ["Hyundai", "HYUNDAI", "hyundai", "Hyunda", "yundai", "yunda", "HYUNDA", "hyunda", "yundai", "yunda"],
+}
+REVERSE_BRAND = {v.lower(): k for k, vals in BRAND_MAP.items() for v in vals}
+BRAND_NORM_TO_CANON = {k.lower(): k for k in BRAND_MAP.keys()}
+BRAND_CANON_VOCAB = sorted(list(BRAND_NORM_TO_CANON.keys()))
+
+TRANS_MAP = {
+    "Manual": ["manual", "manua", "anual", "emi-auto", "MANUAL"],
+    "Semi-Auto": ["semi-auto", "semi-aut", "emi-auto"],
+    "Automatic": ["automatic", "automati", "AUTOMATIC", "utomatic", "Automati"],
+    "Unknown": ["unknown", "unknow", "nknown"],
+    "Other": ["Other", "other"],
+}
+REVERSE_TRANS = {v.lower(): k for k, vals in TRANS_MAP.items() for v in vals}
+TRANS_NORM_TO_CANON = {k.lower(): k for k in TRANS_MAP.keys()}
+TRANS_CANON_VOCAB = sorted([k.lower() for k in TRANS_MAP.keys() if k != "Unknown"])
+
+FUEL_MAP = {
+    "Petrol": ["petrol", "petro", "etrol", "etro"],
+    "Diesel": ["diesel", "dies", "iesel", "diese", "iese", "diesele"],
+    "Hybrid": ["hybrid", "ybri", "hybri", "ybrid", "hybridd"],
+    "Electric": ["electric"],
+    "Other": ["other", "ther", "othe"],
+}
+REVERSE_FUEL = {v.lower(): k for k, vals in FUEL_MAP.items() for v in vals}
+FUEL_NORM_TO_CANON = {k.lower(): k for k in FUEL_MAP.keys()}
+FUEL_CANON_VOCAB = sorted([k.lower() for k in FUEL_MAP.keys()])
+
+MODEL_MAP = {
+    # VW
+    "golf": ["golf", "gol", "golf s", "golf sv"],
+    "passat": ["passat", "passa"],
+    "polo": ["polo", "pol"],
+    "tiguan": ["tiguan", "tigua", "tiguan allspace", "tiguan allspac"],
+    "touran": ["touran", "toura"],
+    "up": ["up", "u"],
+    "sharan": ["sharan", "shara"],
+    "scirocco": ["scirocco", "sciroc"],
+    "amarok": ["amarok", "amaro"],
+    "arteon": ["arteon", "arteo"],
+    "beetle": ["beetle", "beetl"],
+
+    # Toyota
+    "yaris": ["yaris", "yari"],
+    "corolla": ["corolla", "corol", "coroll"],
+    "aygo": ["aygo", "ayg"],
+    "rav4": ["rav4", "rav", "rav-4"],
+    "auris": ["auris", "auri"],
+    "avensis": ["avensis", "avens"],
+    "c-hr": ["c-hr", "chr", "c-h"],
+    "verso": ["verso", "verso-s"],
+    "hilux": ["hilux", "hilu"],
+    "land cruiser": ["land cruiser", "land cruise"],
+
+    # Audi
+    "a_unknown": ["a_unknown"],
+    "a1": ["a1", "a 1"],
+    "a3": ["a3", "a 3"],
+    "a4": ["a4", "a 4"],
+    "a5": ["a5", "a 5"],
+    "a6": ["a6", "a 6"],
+    "a7": ["a7", "a 7"],
+    "a8": ["a8", "a 8"],
+    "q2": ["q2"],
+    "q3": ["q3", "q 3"],
+    "q5": ["q5", "q 5"],
+    "q7": ["q7", "q 7"],
+    "q8": ["q8"],
+    "tt": ["tt"],
+    "r8": ["r8", "r 8"],
+
+    # Ford
+    "fiesta": ["fiesta", "fiest"],
+    "focus": ["focus", "focu"],
+    "mondeo": ["mondeo", "monde"],
+    "kuga": ["kuga", "kug"],
+    "ecosport": ["ecosport", "eco sport", "ecospor"],
+    "puma": ["puma"],
+    "edge": ["edge", "edg"],
+    "s-max": ["s-max", "s-ma", "smax"],
+    "c-max": ["c-max", "c-ma", "cmax"],
+    "b-max": ["b-max", "b-ma", "bmax"],
+    "ka+": ["ka+", "ka", "streetka"],
+
+    # BMW
+    "1 series": ["1 series", "1 serie", "1 ser", "1series"],
+    "2 series": ["2 series", "2 serie", "2series"],
+    "3 series": ["3 series", "3 serie", "3series"],
+    "4 series": ["4 series", "4 serie", "4series"],
+    "5 series": ["5 series", "5 serie", "5series"],
+    "6 series": ["6 series", "6 serie", "6series"],
+    "7 series": ["7 series", "7 serie", "7series"],
+    "8 series": ["8 series", "8 serie", "8series"],
+    "x1": ["x1"],
+    "x2": ["x2"],
+    "x3": ["x3"],
+    "x4": ["x4"],
+    "x5": ["x5"],
+    "x6": ["x6"],
+    "x7": ["x7"],
+    "z3": ["z3"],
+    "z4": ["z4"],
+    "m3": ["m3"],
+    "m4": ["m4"],
+    "m5": ["m5"],
+    "m6": ["m6"],
+
+    # Skoda
+    "fabia": ["fabia", "fabi"],
+    "octavia": ["octavia", "octavi", "octa"],
+    "superb": ["superb", "super"],
+    "scala": ["scala", "scal"],
+    "karoq": ["karoq", "karo"],
+    "kodiaq": ["kodiaq", "kodia", "kodi"],
+    "kamiq": ["kamiq", "kami"],
+    "yeti": ["yeti", "yeti outdoor", "yeti outdoo"],
+
+    # Opel
+    "astra": ["astra", "astr"],
+    "corsa": ["corsa", "cors"],
+    "insignia": ["insignia", "insigni"],
+    "mokka": ["mokka", "mokk", "mokka x", "mokkax"],
+    "zafira": ["zafira", "zafir"],
+    "meriva": ["meriva", "meriv"],
+    "adam": ["adam", "ad"],
+    "vectra": ["vectra", "vectr"],
+    "antara": ["antara", "anta"],
+    "combo life": ["combo life", "combo lif"],
+    "grandland x": ["grandland x", "grandland"],
+    "crossland x": ["crossland x", "crossland"],
+
+    # Mercedes
+    "a class": ["a class", "a clas", "a-class"],
+    "b class": ["b class", "b clas", "b-class"],
+    "c class": ["c class", "c clas", "c-class"],
+    "e class": ["e class", "e clas", "e-class"],
+    "s class": ["s class", "s clas", "s-class"],
+    "glc class": ["glc class", "glc clas"],
+    "gle class": ["gle class", "gle clas"],
+    "gla class": ["gla class", "gla clas"],
+    "cls class": ["cls class", "cls clas"],
+    "glb class": ["glb class"],
+    "gls class": ["gls class"],
+    "m class": ["m class"],
+    "sl class": ["sl class"],
+    "cl class": ["cl class"],
+    "v class": ["v class"],
+    "x-class": ["x-class"],
+    "g class": ["g class"],
+
+    # Hyundai
+    "i10": ["i10", "i 10"],
+    "i20": ["i20", "i 20"],
+    "i30": ["i30", "i 30"],
+    "i40": ["i40", "i 40"],
+    "ioniq": ["ioniq", "ioni"],
+    "ix20": ["ix20", "ix 20"],
+    "ix35": ["ix35", "ix 35"],
+    "kona": ["kona", "kon"],
+    "tucson": ["tucson", "tucso"],
+    "santa fe": ["santa fe", "santa f"],
+}
+REVERSE_MODEL = {v.lower(): k for k, vals in MODEL_MAP.items() for v in vals}
+
+# model -> brand mapping: there are rows where model is filled but brand is not.
+# We can back-fill brand from model via this mapping.
+MODEL_TO_BRAND = {}
+for brand, models in {
+    "VW": ["golf", "passat", "polo", "tiguan", "touran", "up", "sharan", "scirocco", "amarok", "arteon", "beetle"],
+    "Toyota": ["yaris", "corolla", "aygo", "rav4", "auris", "avensis", "c-hr", "verso", "hilux", "land cruiser"],
+    "Audi": ["a_unknown", "a1", "a3", "a4", "a5", "a6", "a7", "a8", "q2", "q3", "q5", "q7", "q8", "tt", "r8"],
+    "Ford": ["fiesta", "focus", "mondeo", "kuga", "ecosport", "puma", "edge", "s-max", "c-max", "b-max", "ka+"],
+    "BMW": ["1 series", "2 series", "3 series", "4 series", "5 series", "6 series", "7 series", "8 series", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "z3", "z4", "m3", "m4", "m5", "m6"],
+    "Skoda": ["fabia", "octavia", "superb", "scala", "karoq", "kodiaq", "kamiq", "yeti"],
+    "Opel": ["astra", "corsa", "insignia", "mokka", "zafira", "meriva", "adam", "vectra", "antara", "combo life", "grandland x", "crossland x"],
+    "Mercedes": ["a class", "b class", "c class", "e class", "s class", "glc class", "gle class", "gla class", "cls class", "glb class", "gls class", "m class", "sl class", "cl class", "v class", "x-class", "g class"],
+    "Hyundai": ["i10", "i20", "i30", "i40", "ioniq", "ix20", "ix35", "kona", "tucson", "santa fe"],
+}.items():
+    for m in models:
+        MODEL_TO_BRAND[m] = brand
+
+
+################################################################################
+# Debug Transformer
 ################################################################################
 
 class DebugTransformer(BaseEstimator, TransformerMixin):
@@ -79,25 +301,27 @@ class DebugTransformer(BaseEstimator, TransformerMixin):
                 display(X.head(self.n_rows))
                 display(X.describe(include="all").T)
                 if self.y_data_profiling:
-                    print("\nGenerating data profiling report...")
-                    profile = ProfileReport(
-                        X,
-                        title="Car Data Profiling Report",
-                        correlations={
-                            "pearson": {"calculate": True},
-                            "spearman": {"calculate": False},
-                            "kendall": {"calculate": False},
-                            "phi_k": {"calculate": False},
-                            "cramers": {"calculate": False},
-                        },
-                    )
-                    profile.to_notebook_iframe()
+                    if ProfileReport is None:
+                        print("\nProfileReport not available (ydata_profiling not installed).")
+                    else:
+                        print("\nGenerating data profiling report...")
+                        profile = ProfileReport(
+                            X,
+                            title="Car Data Profiling Report",
+                            correlations={
+                                "pearson": {"calculate": True},
+                                "spearman": {"calculate": False},
+                                "kendall": {"calculate": False},
+                                "phi_k": {"calculate": False},
+                                "cramers": {"calculate": False},
+                            },
+                        )
+                        profile.to_notebook_iframe()
             else:  # Edge-case for numpy array after column transformer
                 print(f"\nFirst {self.n_rows} rows:")
                 display(X[: self.n_rows])
 
         return X
-
 
 
 ################################################################################
@@ -111,7 +335,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
     What it does:
     ---------------------------
     1) Schema normalization:
-       - rename Brand -> brand 
+       - rename Brand -> brand
        - rename paintQuality% -> paintQuality (then dropped; not available at prediction time)
 
     2) Numeric sanity checks:
@@ -151,8 +375,13 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         fuzzy_cutoff_model=0.94,
         fuzzy_cutoff_trans=0.94,
         fuzzy_cutoff_fuel=0.94,
-        fuzzy_min_token_len=2,              # prevents "a" -> "a3" guessing
-        fuzzy_require_brand_for_model=True  # model fuzzy restricted to brand vocab if possible
+        fuzzy_min_token_len=2,               # prevents "a" -> "a3" guessing
+        fuzzy_require_brand_for_model=True,  # model fuzzy restricted to brand vocab if possible
+
+        # verbosity controls
+        verbose=False,
+        verbose_top_n=10,
+        verbose_plot=False,
     ):
         # numeric checks
         self.year_min = year_min
@@ -177,6 +406,10 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         self.fuzzy_min_token_len = fuzzy_min_token_len
         self.fuzzy_require_brand_for_model = fuzzy_require_brand_for_model
 
+        # verbose
+        self.verbose = verbose
+        self.verbose_top_n = verbose_top_n
+        self.verbose_plot = verbose_plot
 
     # Helpers (string normalization)
     @staticmethod
@@ -185,15 +418,21 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         return s.astype(str).str.strip().str.lower().replace('nan', np.nan)
 
     @staticmethod
-    def _canon_map(series: pd.Series, reverse_map: dict) -> pd.Series:
+    def _canon_map(series: pd.Series, reverse_map: dict, keep_unmapped: bool = False) -> pd.Series:
         """
         Map known variants to canonical labels using a reverse dictionary:
           reverse_map[variant_lower] = canonical_label
+
+        keep_unmapped=False:
+          - strict mode: if token not in reverse_map -> NaN
+        keep_unmapped=True:
+          - permissive mode: if token not in reverse_map -> keep normalized token
         """
         s = series.astype(str).str.strip().str.lower().replace('nan', np.nan)
-        out = s.map(reverse_map)
-        return out
-
+        mapped = s.map(reverse_map)
+        if keep_unmapped:
+            return mapped.fillna(s)
+        return mapped
 
     # Helpers (fuzzy matching)
     @staticmethod
@@ -208,30 +447,60 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         match = get_close_matches(tok, choices, n=1, cutoff=cutoff)
         return match[0] if match else None
 
-    def _fuzzy_fill_missing(self, s: pd.Series, choices: list[str], cutoff: float) -> pd.Series:
+    def _fuzzy_fill_missing(
+        self,
+        s: pd.Series,
+        raw_s: pd.Series,
+        choices: list[str],
+        cutoff: float,
+        col_name: str,
+        to_canonical=None,
+    ) -> pd.Series:
         """
-        Conservative fuzzy fill:
-        - only fills NaNs
-        - only attempts if token length >= fuzzy_min_token_len
+        Conservative fuzzy fill + audit trail:
+        - only fills NaNs in `s`
+        - uses raw_s as “what user originally typed”
+        - records raw -> matched pairs in self.fuzzy_matches_
+
+        Safety additions:
+        - never records/assigns identity matches (tok == match)
+        - choices are expected to be training-fold valid categories (learned in fit())
         """
         out = s.copy()
-
-        def _try(x):
-            if pd.isna(x):
-                return None
-            tok = str(x).strip().lower()
-            if len(tok) < self.fuzzy_min_token_len:
-                return None
-            m = self._fuzzy_one(tok, choices, cutoff=cutoff)
-            return m
-
         miss = out.isna()
-        if miss.any() and choices:
-            out.loc[miss] = out.loc[miss].apply(_try)
+
+        if not miss.any() or not choices:
+            return out
+
+        records = []
+        for idx in out.index[miss]:
+            raw_tok = raw_s.loc[idx]
+            if pd.isna(raw_tok):
+                continue
+
+            tok = str(raw_tok).strip().lower()
+            if len(tok) < self.fuzzy_min_token_len:
+                continue
+
+            m = self._fuzzy_one(tok, choices, cutoff=cutoff)
+            if m is None:
+                continue
+
+            # do not do / report identity mappings
+            if m == tok:
+                # still leave as NaN here; GroupImputer will handle it
+                continue
+
+            out_val = to_canonical(m) if callable(to_canonical) else m
+            out.loc[idx] = out_val
+            records.append({"column": col_name, "raw": tok, "match": out_val})
+
+        if records:
+            self.fuzzy_matches_.extend(records)
+
         return out
 
-
-    # fit (learn fuzzy vocab on train fold only)
+    # fit (learn vocab on train fold only)
     def fit(self, X, y=None):
         """
         Learn training-fold vocab for optional fuzzy fallback.
@@ -243,42 +512,46 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         if "Brand" in df.columns and "brand" not in df.columns:
             df = df.rename(columns={"Brand": "brand"})
 
-        # store global vocab
-        if "brand" in df.columns:
-            self.brand_vocab_ = sorted(self._norm_str_series(df["brand"]).dropna().unique().tolist())
-        else:
-            self.brand_vocab_ = []
+        # store stable canonical vocab for low-cardinality fields (prevents garbage like 'ud' becoming a "valid choice")
+        self.brand_vocab_ = BRAND_CANON_VOCAB
+        self.trans_vocab_ = TRANS_CANON_VOCAB
+        self.fuel_vocab_ = FUEL_CANON_VOCAB
 
+        # learn model vocab from the training fold (many categories, so use what is actually present)
         if "model" in df.columns:
-            self.model_vocab_ = sorted(self._norm_str_series(df["model"]).dropna().unique().tolist())
+            m_norm = self._norm_str_series(df["model"])
+            m_mapped = m_norm.map(REVERSE_MODEL).fillna(m_norm)
+            self.model_vocab_ = sorted(m_mapped.dropna().unique().tolist())
         else:
             self.model_vocab_ = []
-
-        if "transmission" in df.columns:
-            self.trans_vocab_ = sorted(self._norm_str_series(df["transmission"]).dropna().unique().tolist())
-        else:
-            self.trans_vocab_ = []
-
-        if "fuelType" in df.columns:
-            self.fuel_vocab_ = sorted(self._norm_str_series(df["fuelType"]).dropna().unique().tolist())
-        else:
-            self.fuel_vocab_ = []
 
         # brand -> models vocab (safer fuzzy matching for model)
         self.brand_to_models_ = {}
         if "brand" in df.columns and "model" in df.columns:
-            b = self._norm_str_series(df["brand"])
-            m = self._norm_str_series(df["model"])
+            # map brand strictly to canonical (unknown -> NaN), model permissive (unknown kept)
+            b = self._canon_map(df["brand"], REVERSE_BRAND, keep_unmapped=False)
+            m_norm = self._norm_str_series(df["model"])
+            m = m_norm.map(REVERSE_MODEL).fillna(m_norm)
             tmp = pd.DataFrame({"brand": b, "model": m}).dropna()
             for brand_val, g in tmp.groupby("brand"):
-                self.brand_to_models_[brand_val] = sorted(g["model"].unique().tolist())
+                # store in lower-case because fuzzy choices are lower-case
+                self.brand_to_models_[str(brand_val).strip().lower()] = sorted(
+                    g["model"].astype(str).str.strip().str.lower().unique().tolist()
+                )
 
         return self
-
 
     # transform
     def transform(self, X):
         df = pd.DataFrame(X).copy()
+
+        # reset reports each transform call
+        self.clean_report_ = {
+            "numeric_new_nans": {},
+            "categorical_changes": {},
+            "notes": [],
+        }
+        self.fuzzy_matches_ = []
 
         # column carID (set as index, has no duplicates) (in pipelines, keeping it as a column is often easier)
         if self.set_carid_index and "carID" in df.columns:
@@ -293,49 +566,70 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
             df = df.rename(columns={"paintQuality%": "paintQuality"})
 
         # NUMERICAL COLUMNS
+        def _track_new_nans(col, before, after):
+            before_na = int(pd.isna(before).sum())
+            after_na = int(pd.isna(after).sum())
+            new_na = max(0, after_na - before_na)
+            self.clean_report_["numeric_new_nans"][col] = new_na
+
         if "year" in df.columns:
+            before = df["year"].copy()
             df["year"] = pd.to_numeric(df["year"], errors="coerce")
             df.loc[~df["year"].between(self.year_min, self.year_max), "year"] = np.nan
             df["year"] = np.floor(df["year"]).astype("float64")
+            _track_new_nans("year", before, df["year"])
 
         if "mileage" in df.columns:
+            before = df["mileage"].copy()
             df["mileage"] = pd.to_numeric(df["mileage"], errors="coerce")
             df.loc[df["mileage"] < 0, "mileage"] = np.nan
             df["mileage"] = np.floor(df["mileage"]).astype("float64")
+            _track_new_nans("mileage", before, df["mileage"])
 
         if "tax" in df.columns:
+            before = df["tax"].copy()
             df["tax"] = pd.to_numeric(df["tax"], errors="coerce")
             df.loc[df["tax"] < 0, "tax"] = np.nan
             df["tax"] = np.floor(df["tax"]).astype("float64")
+            _track_new_nans("tax", before, df["tax"])
 
         if "mpg" in df.columns:
+            before = df["mpg"].copy()
             df["mpg"] = pd.to_numeric(df["mpg"], errors="coerce")
             df.loc[~df["mpg"].between(self.mpg_min, self.mpg_max), "mpg"] = np.nan
             df["mpg"] = np.floor(df["mpg"]).astype("float64")
+            _track_new_nans("mpg", before, df["mpg"])
 
         if "engineSize" in df.columns:
+            before = df["engineSize"].copy()
             df["engineSize"] = pd.to_numeric(df["engineSize"], errors="coerce")
             df.loc[~df["engineSize"].between(self.engine_min, self.engine_max), "engineSize"] = np.nan
             df["engineSize"] = df["engineSize"].round(1)
+            _track_new_nans("engineSize", before, df["engineSize"])
 
         if "paintQuality" in df.columns:
+            before = df["paintQuality"].copy()
             df["paintQuality"] = pd.to_numeric(df["paintQuality"], errors="coerce")
             df.loc[~df["paintQuality"].between(self.paint_min, self.paint_max), "paintQuality"] = np.nan
             df["paintQuality"] = np.floor(df["paintQuality"]).astype("float64")
+            _track_new_nans("paintQuality", before, df["paintQuality"])
 
         if "previousOwners" in df.columns:
+            before = df["previousOwners"].copy()
             df["previousOwners"] = pd.to_numeric(df["previousOwners"], errors="coerce")
             df.loc[df["previousOwners"] < 0, "previousOwners"] = np.nan
             df["previousOwners"] = np.floor(df["previousOwners"]).astype("float64")
+            _track_new_nans("previousOwners", before, df["previousOwners"])
 
         # column hasDamage (we cannot safely assume NaN means damaged or not damaged)
         if "hasDamage" in df.columns:
+            before = df["hasDamage"].copy()
             df["hasDamage"] = pd.to_numeric(df["hasDamage"], errors="coerce").astype("float64")
+            _track_new_nans("hasDamage", before, df["hasDamage"])
 
         # Drop paintQuality because we cannot use it for predictions (filled by mechanic)
         if "paintQuality" in df.columns:
             df = df.drop(columns=["paintQuality"])
-
 
         # CATEGORICAL COLUMNS
         # The idea is always:
@@ -343,21 +637,15 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         # - map known typos/variants into a canonical label using a reverse dict
 
         # column brand: map all incorrect spellings to the right brand
-        brand_map = {
-            "VW": ["VW", "V", "W", "vw", "v", "w"],
-            "Toyota": ["Toyota", "TOYOTA", "Toyot", "toyota", "oyota", "TOYOT", "OYOTA"],
-            "Audi": ["Audi", "AUDI", "A", "udi", "Aud", "audi", "AUD", "UDI"],
-            "Ford": ["Ford", "FORD", "For", "ord", "for", "ORD", "or", "FOR"],
-            "BMW": ["BMW", "bmw", "MW", "BM", "mw"],
-            "Skoda": ["Skoda", "SKODA", "Skod", "koda", "SKOD", "kod", "skoda", "skod", "KODA"],
-            "Opel": ["Opel", "OPEL", "Ope", "opel", "OPE", "pel", "pe", "PEL", "ope"],
-            "Mercedes": ["Mercedes", "MERCEDES", "mercedes", "Mercede", "ercedes", "ERCEDES", "MERCEDE", "ercede", "mercede"],
-            "Hyundai": ["Hyundai", "HYUNDAI", "hyundai", "Hyunda", "yundai", "yunda", "HYUNDA", "hyunda", "yundai", "yunda"],
-        }
-        reverse_brand = {v.lower(): k for k, vals in brand_map.items() for v in vals}
+        raw_brand = df["brand"].copy() if "brand" in df.columns else None
 
         if "brand" in df.columns:
-            df["brand"] = self._canon_map(df["brand"], reverse_brand)
+            before = df["brand"].copy()
+            df["brand"] = self._canon_map(df["brand"], REVERSE_BRAND, keep_unmapped=False)
+
+            # count changes
+            changed = self._norm_str_series(before).fillna("__nan__") != self._norm_str_series(df["brand"]).fillna("__nan__")
+            self.clean_report_["categorical_changes"]["brand_changed"] = int(changed.sum())
 
         # Store raw model token BEFORE deterministic mapping (used for special cases + optional fuzzy fallback)
         if "model" in df.columns:
@@ -369,249 +657,120 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
         if "brand" in df.columns and "model" in df.columns:
             audi_a_mask = (df["brand"] == "Audi") & (df["_raw_model"] == "a")
             df.loc[audi_a_mask, "model"] = "a_unknown"
+            if audi_a_mask.any():
+                self.clean_report_["notes"].append(f"Audi model 'a' mapped to 'a_unknown' for {int(audi_a_mask.sum())} rows.")
 
         # column model: map all incorrect spellings to the right model
-        model_map = {
-            # VW
-            "golf": ["golf", "gol", "golf s", "golf sv"],
-            "passat": ["passat", "passa"],
-            "polo": ["polo", "pol"],
-            "tiguan": ["tiguan", "tigua", "tiguan allspace", "tiguan allspac"],
-            "touran": ["touran", "toura"],
-            "up": ["up", "u"],
-            "sharan": ["sharan", "shara"],
-            "scirocco": ["scirocco", "sciroc"],
-            "amarok": ["amarok", "amaro"],
-            "arteon": ["arteon", "arteo"],
-            "beetle": ["beetle", "beetl"],
-
-            # Toyota
-            "yaris": ["yaris", "yari"],
-            "corolla": ["corolla", "corol", "coroll"],
-            "aygo": ["aygo", "ayg"],
-            "rav4": ["rav4", "rav", "rav-4"],
-            "auris": ["auris", "auri"],
-            "avensis": ["avensis", "avens"],
-            "c-hr": ["c-hr", "chr", "c-h"],
-            "verso": ["verso", "verso-s"],
-            "hilux": ["hilux", "hilu"],
-            "land cruiser": ["land cruiser", "land cruise"],
-
-            # Audi
-            "a_unknown": ["a_unknown"],
-            "a1": ["a1", "a 1"],
-            "a3": ["a3", "a 3"],
-            "a4": ["a4", "a 4"],
-            "a5": ["a5", "a 5"],
-            "a6": ["a6", "a 6"],
-            "a7": ["a7", "a 7"],
-            "a8": ["a8", "a 8"],
-            "q2": ["q2"],
-            "q3": ["q3", "q 3"],
-            "q5": ["q5", "q 5"],
-            "q7": ["q7", "q 7"],
-            "q8": ["q8"],
-            "tt": ["tt"],
-            "r8": ["r8", "r 8"],
-
-            # Ford
-            "fiesta": ["fiesta", "fiest"],
-            "focus": ["focus", "focu"],
-            "mondeo": ["mondeo", "monde"],
-            "kuga": ["kuga", "kug"],
-            "ecosport": ["ecosport", "eco sport", "ecospor"],
-            "puma": ["puma"], 
-            "edge": ["edge", "edg"],
-            "s-max": ["s-max", "s-ma", "smax"],
-            "c-max": ["c-max", "c-ma", "cmax"],
-            "b-max": ["b-max", "b-ma", "bmax"],
-            "ka+": ["ka+", "ka", "streetka"],
-
-            # BMW
-            "1 series": ["1 series", "1 serie", "1 ser", "1series"],
-            "2 series": ["2 series", "2 serie", "2series"],
-            "3 series": ["3 series", "3 serie", "3series"],
-            "4 series": ["4 series", "4 serie", "4series"],
-            "5 series": ["5 series", "5 serie", "5series"],
-            "6 series": ["6 series", "6 serie", "6series"],
-            "7 series": ["7 series", "7 serie", "7series"],
-            "8 series": ["8 series", "8 serie", "8series"],
-            "x1": ["x1"],
-            "x2": ["x2"],
-            "x3": ["x3"],
-            "x4": ["x4"],
-            "x5": ["x5"],
-            "x6": ["x6"],
-            "x7": ["x7"],
-            "z3": ["z3"],
-            "z4": ["z4"],
-            "m3": ["m3"],
-            "m4": ["m4"],
-            "m5": ["m5"],
-            "m6": ["m6"],
-
-            # Skoda
-            "fabia": ["fabia", "fabi"],
-            "octavia": ["octavia", "octavi", "octa"],
-            "superb": ["superb", "super"],
-            "scala": ["scala", "scal"],
-            "karoq": ["karoq", "karo"],
-            "kodiaq": ["kodiaq", "kodia", "kodi"],
-            "kamiq": ["kamiq", "kami"],
-            "yeti": ["yeti", "yeti outdoor", "yeti outdoo"],
-
-            # Opel
-            "astra": ["astra", "astr"],
-            "corsa": ["corsa", "cors"],
-            "insignia": ["insignia", "insigni"],
-            "mokka": ["mokka", "mokk", "mokka x", "mokkax"],
-            "zafira": ["zafira", "zafir"],
-            "meriva": ["meriva", "meriv"],
-            "adam": ["adam", "ad"],
-            "vectra": ["vectra", "vectr"],
-            "antara": ["antara", "anta"],
-            "combo life": ["combo life", "combo lif"],
-            "grandland x": ["grandland x", "grandland"],
-            "crossland x": ["crossland x", "crossland"],
-
-            # Mercedes
-            "a class": ["a class", "a clas", "a-class"],
-            "b class": ["b class", "b clas", "b-class"],
-            "c class": ["c class", "c clas", "c-class"],
-            "e class": ["e class", "e clas", "e-class"],
-            "s class": ["s class", "s clas", "s-class"],
-            "glc class": ["glc class", "glc clas"],
-            "gle class": ["gle class", "gle clas"],
-            "gla class": ["gla class", "gla clas"],
-            "cls class": ["cls class", "cls clas"],
-            "glb class": ["glb class"],
-            "gls class": ["gls class"],
-            "m class": ["m class"],
-            "sl class": ["sl class"],
-            "cl class": ["cl class"],
-            "v class": ["v class"],
-            "x-class": ["x-class"],
-            "g class": ["g class"],
-
-            # Hyundai
-            "i10": ["i10", "i 10"],
-            "i20": ["i20", "i 20"],
-            "i30": ["i30", "i 30"],
-            "i40": ["i40", "i 40"],
-            "ioniq": ["ioniq", "ioni"],
-            "ix20": ["ix20", "ix 20"],
-            "ix35": ["ix35", "ix 35"],
-            "kona": ["kona", "kon"],
-            "tucson": ["tucson", "tucso"],
-            "santa fe": ["santa fe", "santa f"],
-        }
-
-        reverse_model = {v.lower(): k for k, vals in model_map.items() for v in vals}
-
         if "model" in df.columns:
+            before = df["model"].copy()
+
             # Important: do NOT overwrite the Audi special case a_unknown
-            # We only map those rows where model is still not already set to a_unknown
             model_is_unknown_bucket = df["model"].astype(str) == "a_unknown"
-            mapped = self._canon_map(df["model"], reverse_model)
+
+            # deterministic canonicalization, but do NOT delete unknown models (we validate against training vocab below)
+            mapped = self._canon_map(df["model"], REVERSE_MODEL, keep_unmapped=True)
             df.loc[~model_is_unknown_bucket, "model"] = mapped.loc[~model_is_unknown_bucket]
 
+            # enforce "valid categories" = categories seen in the training fold (vocab learned in fit)
+            if getattr(self, "model_vocab_", None):
+                m_norm = self._norm_str_series(df["model"])
+                valid_mask = m_norm.isna() | m_norm.isin(self.model_vocab_) | model_is_unknown_bucket
+                # keep current values only if valid, else set to NaN (GroupImputer will handle)
+                df.loc[~valid_mask, "model"] = np.nan
+
+            changed = self._norm_str_series(before).fillna("__nan__") != self._norm_str_series(df["model"]).fillna("__nan__")
+            self.clean_report_["categorical_changes"]["model_changed"] = int(changed.sum())
+
         # column transmission
-        trans_map = {
-            "Manual": ["manual", "manua", "anual", "emi-auto", "MANUAL"],
-            "Semi-Auto": ["semi-auto", "semi-aut", "emi-auto"],
-            "Automatic": ["automatic", "automati", "AUTOMATIC", "utomatic", "Automati"],
-            "Unknown": ["unknown", "unknow", "nknown"],
-            "Other": ["Other", "other"],
-        }
-        reverse_trans = {v.lower(): k for k, vals in trans_map.items() for v in vals}
+        raw_trans = df["transmission"].copy() if "transmission" in df.columns else None
+
         if "transmission" in df.columns:
-            df["transmission"] = self._canon_map(df["transmission"], reverse_trans)
-            # Set Unknown transmission values to NaN to lead the imputation handle it
+            before = df["transmission"].copy()
+            df["transmission"] = self._canon_map(df["transmission"], REVERSE_TRANS, keep_unmapped=False)
             df.loc[df["transmission"] == "Unknown", "transmission"] = np.nan
 
-        # column fuelType
-        fuel_map = {
-            "Petrol": ["petrol", "petro", "etrol", "etro"],
-            "Diesel": ["diesel", "dies", "iesel", "diese", "iese", "diesele"],
-            "Hybrid": ["hybrid", "ybri", "hybri", "ybrid", "hybridd"],
-            "Electric": ["electric"],
-            "Other": ["other", "ther", "othe"],
-        }
-        reverse_fuel = {v.lower(): k for k, vals in fuel_map.items() for v in vals}
-        if "fuelType" in df.columns:
-            df["fuelType"] = self._canon_map(df["fuelType"], reverse_fuel)
+            changed = self._norm_str_series(before).fillna("__nan__") != self._norm_str_series(df["transmission"]).fillna("__nan__")
+            self.clean_report_["categorical_changes"]["transmission_changed"] = int(changed.sum())
 
-            
-            # Try different techniques to deal with Electric vehicles due to too few samples (do NOT drop rows inside pipeline)
+        # column fuelType
+        raw_fuel = df["fuelType"].copy() if "fuelType" in df.columns else None
+
+        if "fuelType" in df.columns:
+            before = df["fuelType"].copy()
+            df["fuelType"] = self._canon_map(df["fuelType"], REVERSE_FUEL, keep_unmapped=False)
+
             if self.handle_electric == "other":
                 df.loc[df["fuelType"] == "Electric", "fuelType"] = "Other"
             elif self.handle_electric == "nan":
                 df.loc[df["fuelType"] == "Electric", "fuelType"] = np.nan
 
+            changed = self._norm_str_series(before).fillna("__nan__") != self._norm_str_series(df["fuelType"]).fillna("__nan__")
+            self.clean_report_["categorical_changes"]["fuelType_changed"] = int(changed.sum())
 
         # FUZZY FALLBACK
         # Only try to fill values that are STILL missing after deterministic mapping.
         # This avoids fuzzy overriding correct deterministic mappings.
         if self.use_fuzzy:
-            # brand fuzzy
-            if "brand" in df.columns and getattr(self, "brand_vocab_", []):
-                df["brand"] = self._fuzzy_fill_missing(df["brand"], self.brand_vocab_, self.fuzzy_cutoff_brand)
+            if "brand" in df.columns and getattr(self, "brand_vocab_", []) and raw_brand is not None:
+                df["brand"] = self._fuzzy_fill_missing(
+                    df["brand"],
+                    raw_brand,
+                    self.brand_vocab_,
+                    self.fuzzy_cutoff_brand,
+                    "brand",
+                    to_canonical=lambda m: BRAND_NORM_TO_CANON.get(str(m).lower(), m),
+                )
 
-            # transmission fuzzy
-            if "transmission" in df.columns and getattr(self, "trans_vocab_", []):
-                df["transmission"] = self._fuzzy_fill_missing(df["transmission"], self.trans_vocab_, self.fuzzy_cutoff_trans)
+            if "transmission" in df.columns and getattr(self, "trans_vocab_", []) and raw_trans is not None:
+                df["transmission"] = self._fuzzy_fill_missing(
+                    df["transmission"],
+                    raw_trans,
+                    self.trans_vocab_,
+                    self.fuzzy_cutoff_trans,
+                    "transmission",
+                    to_canonical=lambda m: TRANS_NORM_TO_CANON.get(str(m).lower(), m),
+                )
 
-            # fuel fuzzy
-            if "fuelType" in df.columns and getattr(self, "fuel_vocab_", []):
-                df["fuelType"] = self._fuzzy_fill_missing(df["fuelType"], self.fuel_vocab_, self.fuzzy_cutoff_fuel)
+            if "fuelType" in df.columns and getattr(self, "fuel_vocab_", []) and raw_fuel is not None:
+                df["fuelType"] = self._fuzzy_fill_missing(
+                    df["fuelType"],
+                    raw_fuel,
+                    self.fuel_vocab_,
+                    self.fuzzy_cutoff_fuel,
+                    "fuelType",
+                    to_canonical=lambda m: FUEL_NORM_TO_CANON.get(str(m).lower(), m),
+                )
 
-            # model fuzzy (restricted to brand-specific vocab when possible)
             if "model" in df.columns:
-                # only attempt fuzzy on missing model values
                 miss_model = df["model"].isna()
                 if miss_model.any():
-                    def _choices_for_row(idx):
-                        if self.fuzzy_require_brand_for_model and "brand" in df.columns and pd.notna(df.loc[idx, "brand"]):
-                            b = str(df.loc[idx, "brand"]).strip().lower()
-                            return self.brand_to_models_.get(b, [])
-                        return getattr(self, "model_vocab_", [])
-
-                    filled = []
+                    records = []
                     for idx in df.index[miss_model]:
                         raw_tok = df.loc[idx, "_raw_model"]
                         if pd.isna(raw_tok) or len(str(raw_tok)) < self.fuzzy_min_token_len:
-                            filled.append(np.nan)
                             continue
-                        choices = _choices_for_row(idx)
-                        m = self._fuzzy_one(raw_tok, choices, cutoff=self.fuzzy_cutoff_model)
-                        filled.append(m if m is not None else np.nan)
 
-                    df.loc[miss_model, "model"] = pd.Series(filled, index=df.index[miss_model])
+                        raw_tok_l = str(raw_tok).strip().lower()
 
-        # clean helper column
+                        if self.fuzzy_require_brand_for_model and "brand" in df.columns and pd.notna(df.loc[idx, "brand"]):
+                            b = str(df.loc[idx, "brand"]).strip().lower()
+                            choices = self.brand_to_models_.get(b, [])
+                        else:
+                            choices = getattr(self, "model_vocab_", [])
+
+                        m = self._fuzzy_one(raw_tok_l, choices, cutoff=self.fuzzy_cutoff_model)
+                        if m is not None and m != raw_tok_l:
+                            df.loc[idx, "model"] = m
+                            records.append({"column": "model", "raw": raw_tok_l, "match": m})
+                    if records:
+                        self.fuzzy_matches_.extend(records)
+
         df = df.drop(columns=["_raw_model"], errors="ignore")
-
-        # build model -> brand mapping: there are rows where model is filled but brand is not.
-        # We can back-fill brand from model via this mapping.
-        model_to_brand = {}
-        for brand, models in {
-            "VW": ["golf", "passat", "polo", "tiguan", "touran", "up", "sharan", "scirocco", "amarok", "arteon", "beetle"],
-            "Toyota": ["yaris", "corolla", "aygo", "rav4", "auris", "avensis", "c-hr", "verso", "hilux", "land cruiser"],
-            "Audi": ["a_unknown","a1", "a3", "a4", "a5", "a6", "a7", "a8", "q2", "q3", "q5", "q7", "q8", "tt", "r8"],
-            "Ford": ["fiesta", "focus", "mondeo", "kuga", "ecosport", "puma", "edge", "s-max", "c-max", "b-max", "ka+"],
-            "BMW": ["1 series","2 series","3 series","4 series","5 series","6 series","7 series","8 series","x1","x2","x3","x4","x5","x6","x7","z3","z4","m3","m4","m5","m6"],
-            "Skoda": ["fabia", "octavia", "superb", "scala", "karoq", "kodiaq", "kamiq", "yeti"],
-            "Opel": ["astra", "corsa", "insignia", "mokka", "zafira", "meriva", "adam", "vectra", "antara", "combo life", "grandland x", "crossland x"],
-            "Mercedes": ["a class","b class","c class","e class","s class","glc class","gle class","gla class","cls class","glb class","gls class","m class","sl class","cl class","v class","x-class","g class"],
-            "Hyundai": ["i10","i20","i30","i40","ioniq","ix20","ix35","kona","tucson","santa fe"],
-        }.items():
-            for m in models:
-                model_to_brand[m] = brand
 
         # fill missing brand from model where possible
         if "brand" in df.columns and "model" in df.columns:
             mask = df["brand"].isna() & df["model"].notna()
-            df.loc[mask, "brand"] = df.loc[mask, "model"].map(model_to_brand)
+            df.loc[mask, "brand"] = df.loc[mask, "model"].map(MODEL_TO_BRAND)
 
         # Fallback to ensure sklearn compatibility (convert all string dtypes to object and replace pd.NA with np.nan)
         for col in df.columns:
@@ -619,8 +778,62 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
                 # First replace pd.NA explicitly, then convert to object
                 df[col] = df[col].replace({pd.NA: np.nan}).astype('object')
 
+        if self.verbose:
+            _print_section("CarDataCleaner report")
+
+            # Numeric report
+            if self.clean_report_["numeric_new_nans"]:
+                num_rep = pd.DataFrame(
+                    [{"column": k, "new_NaNs_created": v} for k, v in self.clean_report_["numeric_new_nans"].items()]
+                ).sort_values("new_NaNs_created", ascending=False)
+                print("Numeric sanity checks (values set to missing because they were implausible):")
+                _maybe_display(num_rep, max_rows=self.verbose_top_n)
+            else:
+                print("Numeric sanity checks: no new missing values were created.")
+
+            # Categorical report
+            if self.clean_report_["categorical_changes"]:
+                cat_rep = pd.DataFrame(
+                    [{"field": k, "n_changed": v} for k, v in self.clean_report_["categorical_changes"].items()]
+                ).sort_values("n_changed", ascending=False)
+                print("\nCategorical corrections (typos/variants collapsed to stable labels):")
+                _maybe_display(cat_rep, max_rows=self.verbose_top_n)
+            else:
+                print("\nCategorical corrections: no changes were made.")
+
+            # Notes (like Audi a->a_unknown)
+            if self.clean_report_["notes"]:
+                print("\nSpecial rules applied:")
+                for n in self.clean_report_["notes"]:
+                    print(f"- {n}")
+
+            # Fuzzy report
+            if self.use_fuzzy:
+                if self.fuzzy_matches_:
+                    fm = pd.DataFrame(self.fuzzy_matches_)
+                    fm["pair"] = fm["raw"].astype(str) + "  ->  " + fm["match"].astype(str)
+                    summary = (
+                        fm.groupby(["column", "pair"])
+                        .size()
+                        .reset_index(name="count")
+                        .sort_values(["column", "count"], ascending=[True, False])
+                    )
+                    print("\nFuzzy matches performed (raw token -> chosen match):")
+                    _maybe_display(summary, max_rows=self.verbose_top_n)
+
+                    if self.verbose_plot:
+                        for col in summary["column"].unique():
+                            sub = summary[summary["column"] == col].head(self.verbose_top_n)
+                            plt.figure()
+                            plt.title(f"Top fuzzy mappings for {col}")
+                            plt.barh(sub["pair"][::-1], sub["count"][::-1])
+                            plt.xlabel("Count")
+                            plt.tight_layout()
+                            plt.show()
+                else:
+                    print("\nFuzzy matching: no replacements made.")
+
         return df
-    
 
 
 ################################################################################
@@ -657,6 +870,9 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
         z_thresh=3.5,
         action="nan",           # "nan" or "clip"
         verbose=False,
+        exclude_id_cols=True,
+        skip_discrete=True,
+        discrete_unique_thresh=20,
     ):
         self.cols = cols
         self.methods = methods
@@ -665,6 +881,9 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
         self.z_thresh = z_thresh
         self.action = action
         self.verbose = verbose
+        self.exclude_id_cols = exclude_id_cols
+        self.skip_discrete = skip_discrete
+        self.discrete_unique_thresh = discrete_unique_thresh
 
     def fit(self, X, y=None):
         df = pd.DataFrame(X).copy()
@@ -673,7 +892,10 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
         # Decide which columns to handle
         if self.cols is None:
             # Only numeric columns by default
-            self.cols_ = df.select_dtypes(include="number").columns.to_list()
+            cols_ = df.select_dtypes(include="number").columns.to_list()
+            if self.exclude_id_cols:
+                cols_ = [c for c in cols_ if not (str(c).lower().endswith("id") or str(c).lower() == "id")]
+            self.cols_ = cols_
         else:
             self.cols_ = [c for c in self.cols if c in df.columns]
 
@@ -685,6 +907,13 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
             if s.empty:
                 self.stats_[col] = {}
                 continue
+
+            # NEW: skip very low-cardinality numeric columns (often discrete schedules like road-tax bands)
+            if self.skip_discrete:
+                nunq = int(s.nunique(dropna=True))
+                if nunq <= int(self.discrete_unique_thresh):
+                    self.stats_[col] = {}
+                    continue
 
             col_stats = {}
 
@@ -725,6 +954,11 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
 
         for col in getattr(self, "cols_", []):
             if col not in df.columns:
+                continue
+
+            # skipped columns have empty stats
+            if not self.stats_.get(col, {}):
+                self.n_outliers_by_col_[col] = 0
                 continue
 
             s = pd.to_numeric(df[col], errors="coerce").astype(float)
@@ -774,9 +1008,28 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
                 raise ValueError(f"OutlierHandler: unknown action='{self.action}'. Use 'nan' or 'clip'.")
 
         self.n_outliers_total_ = n_total_flagged
+
+        self.report_ = (
+            pd.DataFrame({"column": list(self.n_outliers_by_col_.keys()), "cells_flagged": list(self.n_outliers_by_col_.values())})
+              .sort_values("cells_flagged", ascending=False)
+              .reset_index(drop=True)
+        )
+
         if self.verbose:
-            print(f"OutlierHandler: flagged total outliers (cells): {self.n_outliers_total_}")
-            # print(self.n_outliers_by_col_)  # uncomment for detailed logging
+            _print_section("OutlierHandler report")
+            print(f"Action: {self.action} (we never drop rows)")
+            print(f"Total cells flagged: {self.n_outliers_total_}")
+            _maybe_display(self.report_, max_rows=15)
+
+            # Plot
+            top = self.report_.head(15)
+            if len(top) > 0:
+                plt.figure()
+                plt.title("Outliers flagged (top columns)")
+                plt.barh(top["column"][::-1], top["cells_flagged"][::-1])
+                plt.xlabel("Cells flagged")
+                plt.tight_layout()
+                plt.show()
 
         return df
 
@@ -786,9 +1039,8 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
         return np.asarray(input_features, dtype=object)
 
 
-
 ################################################################################
-# Missing Values (GroupImputer) 
+# Missing Values (GroupImputer)
 ################################################################################
 
 class GroupImputer(BaseEstimator, TransformerMixin):
@@ -816,11 +1068,13 @@ class GroupImputer(BaseEstimator, TransformerMixin):
     - `num_cols` and `cat_cols` can be given explicitly (lists of column names). If None, they are inferred from the dtypes in `fit`.
     """
 
-    def __init__(self, group_cols=("brand", "model"), num_cols=None, cat_cols=None, fallback="__MISSING__"):
+    def __init__(self, group_cols=("brand", "model"), num_cols=None, cat_cols=None, fallback="__MISSING__", verbose=False, verbose_top_n=10):
         self.group_cols = group_cols
         self.num_cols = num_cols
         self.cat_cols = cat_cols
         self.fallback = fallback
+        self.verbose = verbose
+        self.verbose_top_n = verbose_top_n
 
     # helpers
     def _mode(self, s: pd.Series):
@@ -835,7 +1089,6 @@ class GroupImputer(BaseEstimator, TransformerMixin):
         if not m.empty:
             return m.iloc[0]
         return self.fallback
-
 
     def _get_group_series(self, df: pd.DataFrame, col_name: str) -> pd.Series:
         """
@@ -857,7 +1110,6 @@ class GroupImputer(BaseEstimator, TransformerMixin):
         if len(matches) == 0:
             raise ValueError(f"GroupImputer: grouping column '{col_name}' not found in data.")
         return df.iloc[:, matches[0]]
-
 
     def fit(self, X, y=None):
         """
@@ -884,7 +1136,7 @@ class GroupImputer(BaseEstimator, TransformerMixin):
         # group_cols must contain at least one column name
         if self.group_cols is None or len(self.group_cols) == 0:
             raise ValueError("GroupImputer: at least one group column must be specified.")
-        
+
         self.group_cols_ = list(self.group_cols)
 
         # Determine numeric columns to impute (internal num_cols_)
@@ -966,7 +1218,6 @@ class GroupImputer(BaseEstimator, TransformerMixin):
 
         return self
 
-
     def transform(self, X):
         """
         Apply hierarchical imputation to new data.
@@ -986,6 +1237,10 @@ class GroupImputer(BaseEstimator, TransformerMixin):
         if len(self.group_cols_) > 1:
             g1 = self._get_group_series(df, self.group_cols_[1])
 
+        # NEW: audit counters
+        report = {"num_pair": 0, "num_brand": 0, "num_global": 0, "cat_pair": 0, "cat_brand": 0, "cat_global": 0}
+        per_col = Counter()
+
         # numeric imputation
         if hasattr(self, "num_cols_") and self.num_cols_:
             df[self.num_cols_] = df[self.num_cols_].astype("float64")
@@ -1002,6 +1257,9 @@ class GroupImputer(BaseEstimator, TransformerMixin):
                         if col not in self.num_pair_.columns:
                             continue
                         mask = df[col].isna() & joined[col].notna()
+                        n = int(mask.sum())
+                        report["num_pair"] += n
+                        per_col[col] += n
                         df.loc[mask, col] = joined.loc[mask, col]
 
                 # 2) first-level imputation: per g0 only
@@ -1014,11 +1272,18 @@ class GroupImputer(BaseEstimator, TransformerMixin):
                         if col not in self.num_first_.columns:
                             continue
                         mask = df[col].isna() & joined1[col].notna()
+                        n = int(mask.sum())
+                        report["num_brand"] += n
+                        per_col[col] += n
                         df.loc[mask, col] = joined1.loc[mask, col]
 
                 # 3) global median fallback
                 for col in to_impute_num:
                     if col in self.num_global_:
+                        mask = df[col].isna()
+                        n = int(mask.sum())
+                        report["num_global"] += n
+                        per_col[col] += n
                         df[col] = df[col].fillna(self.num_global_[col])
 
         # categorical imputation
@@ -1036,6 +1301,9 @@ class GroupImputer(BaseEstimator, TransformerMixin):
                         if col not in self.cat_pair_.columns:
                             continue
                         mask = df[col].isna() & joined[col].notna()
+                        n = int(mask.sum())
+                        report["cat_pair"] += n
+                        per_col[col] += n
                         df.loc[mask, col] = joined.loc[mask, col]
 
                 # 2) first-level imputation: per g0 only
@@ -1048,14 +1316,34 @@ class GroupImputer(BaseEstimator, TransformerMixin):
                         if col not in self.cat_first_.columns:
                             continue
                         mask = df[col].isna() & joined1[col].notna()
+                        n = int(mask.sum())
+                        report["cat_brand"] += n
+                        per_col[col] += n
                         df.loc[mask, col] = joined1.loc[mask, col]
 
                 # 3) global mode fallback (or fallback token)
                 for col in to_impute_cat:
-                    if col in self.cat_global_:
-                        df[col] = df[col].fillna(self.cat_global_[col])
-                    else:
-                        df[col] = df[col].fillna(self.fallback)
+                    mask = df[col].isna()
+                    n = int(mask.sum())
+                    report["cat_global"] += n
+                    per_col[col] += n
+                    df[col] = df[col].fillna(self.cat_global_.get(col, self.fallback))
+
+        # store report for later inspection
+        self.report_ = report
+        self.report_by_column_ = (
+            pd.DataFrame(per_col.items(), columns=["column", "values_filled"])
+            .sort_values("values_filled", ascending=False)
+            .reset_index(drop=True)
+        )
+
+        if self.verbose:
+            _print_section("GroupImputer report")
+            print("Imputed Missing Values ( always try 'most similar cars' first):\n")
+            print(f"- Numeric (Median):   (brand+model)={report['num_pair']}, brand={report['num_brand']}, global={report['num_global']}")
+            print(f"- Categorical (Mode): (brand+model)={report['cat_pair']}, brand={report['cat_brand']}, global={report['cat_global']}")
+            print("\nTop columns affected:")
+            _maybe_display(self.report_by_column_, max_rows=self.verbose_top_n)
 
         return df
 
@@ -1070,7 +1358,6 @@ class GroupImputer(BaseEstimator, TransformerMixin):
         if input_features is None:
             input_features = getattr(self, "feature_names_in_", None)
         return np.asarray(input_features, dtype=object)
-
 
 
 ################################################################################
@@ -1090,8 +1377,10 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
       the signature must accept it.
     """
 
-    def __init__(self, ref_year=None):
+    def __init__(self, ref_year=None, verbose=False, verbose_n_rows=5):
         self.ref_year = ref_year
+        self.verbose = verbose
+        self.verbose_n_rows = verbose_n_rows
 
     def fit(self, X, y=None):  # y is necessary because 3 arguments are given in pipeline
         X_ = X.copy()
@@ -1111,7 +1400,7 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = X.copy()
-
+        before_cols = set(X.columns)
         # Available num features:
         # orig_numeric_features = ["year", "mileage", "tax", "mpg", "engineSize", "previousOwners"] # though previousOwners has now correlations
         # orig_categorical_features = ["brand", "model", "transmission", "fuelType"]
@@ -1130,7 +1419,7 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
         #       -> Mult or Div has to be chosen based on the logic of the relationship
         #       Multiplication: The Amplifier (model synergy or joint occurrence: "The presence of A makes B more effective") -> capture simultaneous impact of two things
 
-        X["mpg_x_engine"] = X["mpg"] * X["engineSize"] 
+        X["mpg_x_engine"] = X["mpg"] * X["engineSize"]
 
         # Removed because of high multicolinearity and lower corr with price: X['mileage_x_mpg']          = X['mileage'] * X[s'mpg'] # Higher mileage cars tend to have lower MPG (people drive lower mpg cars more often) -> amplify effect
 
@@ -1164,13 +1453,22 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
         ############ Relative Age (within brand): newer/older than brand median year (fill with 0 if brand or model was not seen during training)
         X["age_rel_brand"] = X["age"] - X["brand"].map(self.brand_mean_age_).fillna(0.0)  # use mean instead of median because most of the values were 0 otherwise
         X["age_rel_model"] = X["age"] - X["model"].map(self.model_mean_age_).fillna(0.0)
-        
+
         # fill with 1 if model was not seen during training
         X["engine_rel_model"] = (X["engineSize"] / X["model"].map(self.model_mean_engineSize_).fillna(1.0)).fillna(1.0)  # engine size relative to model mean engine size
 
         # TODO tax divided by mean model price (affordability within model) # Before that: check whether road tax varies per model
-        return X
 
+        if self.verbose:
+            _print_section("CarFeatureEngineer report")
+            new_cols = sorted(list(set(X.columns) - before_cols))
+            print(f"New features created: {len(new_cols)}")
+            print(", ".join(new_cols))
+            print("\nExample rows (only the new features):")
+            _maybe_display(X[new_cols].head(self.verbose_n_rows), max_rows=self.verbose_n_rows)
+            print("\nNote: the returned dataframe contains ALL original columns plus the new features above.")
+
+        return X
 
 
 ################################################################################
@@ -1198,7 +1496,7 @@ class MajorityVoteSelectorTransformer(BaseEstimator, TransformerMixin):
     Runs multiple feature selectors and keeps a feature if at least `min_votes` selectors agree.
     """
 
-    def __init__(self, selectors=None, min_votes=2):
+    def __init__(self, selectors=None, min_votes=2, verbose=False):
         """
         args:
             selectors: list of sklearn feature selector objects.
@@ -1206,9 +1504,11 @@ class MajorityVoteSelectorTransformer(BaseEstimator, TransformerMixin):
         """
         self.selectors = selectors
         self.min_votes = min_votes
+        self.verbose = verbose
         self.fitted_selectors_ = []
         self.support_mask_ = None
         self.feature_names_in_ = None
+        self.votes_ = None
 
     def fit(self, X, y=None):
         # Validate inputs
@@ -1229,11 +1529,30 @@ class MajorityVoteSelectorTransformer(BaseEstimator, TransformerMixin):
             self.fitted_selectors_.append(sel)
 
             # Get boolean mask of selected features (True means that they are selected)
-            mask = sel.get_support()
-            votes += mask.astype(int)
+            votes += sel.get_support().astype(int)
 
         # Create the final mask: True if votes >= threshold
+        self.votes_ = votes.copy()
         self.support_mask_ = votes >= self.min_votes
+
+        if self.verbose:
+            _print_section("MajorityVoteSelectorTransformer report")
+            n_total = X.shape[1]
+            n_keep = int(self.support_mask_.sum())
+            print(f"Features kept: {n_keep}/{n_total} (min_votes={self.min_votes})")
+
+            # simple visualization: how many features got 0/1/2/.. votes
+            vc = pd.Series(votes).value_counts().sort_index()
+            rep = pd.DataFrame({"votes": vc.index, "n_features": vc.values})
+            _maybe_display(rep, max_rows=20)
+
+            plt.figure()
+            plt.title("Vote distribution (how many selectors agreed)")
+            plt.bar(rep["votes"].astype(str), rep["n_features"])
+            plt.xlabel("Votes")
+            plt.ylabel("Number of features")
+            plt.tight_layout()
+            plt.show()
 
         return self
 
@@ -1260,6 +1579,7 @@ class MajorityVoteSelectorTransformer(BaseEstimator, TransformerMixin):
 
         return np.array(input_features)[self.support_mask_]
 
+
 ################################################################################
 
 class SpearmanRelevancyRedundancySelector(BaseEstimator, SelectorMixin):
@@ -1284,9 +1604,20 @@ class SpearmanRelevancyRedundancySelector(BaseEstimator, SelectorMixin):
         Maximum absolute Spearman correlation allowed between a new feature and already selected features.
     """
 
-    def __init__(self, relevance_threshold=0.1, redundancy_threshold=0.85):
+    def __init__(
+        self,
+        relevance_threshold=0.1,
+        redundancy_threshold=0.85,
+        verbose=False,
+        verbose_top_n=15,
+        verbose_plot=True,
+    ):
         self.relevance_threshold = relevance_threshold
         self.redundancy_threshold = redundancy_threshold
+        self.verbose = verbose
+        self.verbose_top_n = verbose_top_n
+        self.verbose_plot = verbose_plot
+
         self.selected_indices_ = None
         self.feature_names_in_ = None
 
@@ -1310,6 +1641,7 @@ class SpearmanRelevancyRedundancySelector(BaseEstimator, SelectorMixin):
 
         self.relevance_scores_ = np.array(relevance_scores)
         relevance_indices = np.where(self.relevance_scores_ > self.relevance_threshold)[0]
+        self.relevance_pass_indices_ = relevance_indices
 
         # Sort candidates by relevance (Best feature first (descending) -> argsort gives ascending, so we take [::-1])
         sorted_candidates = relevance_indices[np.argsort(self.relevance_scores_[relevance_indices])[::-1]]
@@ -1342,6 +1674,50 @@ class SpearmanRelevancyRedundancySelector(BaseEstimator, SelectorMixin):
             selected_indices = sorted_candidates[kept_local_indices]
 
         self.selected_indices_ = np.array(selected_indices)
+
+        # Verbose report
+        if self.verbose:
+            _print_section("SpearmanRelevancyRedundancySelector report")
+
+            total = n_features
+            passed = len(self.relevance_pass_indices_)
+            kept = len(self.selected_indices_)
+
+            print(f"Thresholds: relevance >= {self.relevance_threshold} | redundancy < {self.redundancy_threshold}")
+            print(f"Total features: {total}")
+            print(f"Passed relevance filter: {passed}")
+            print(f"Kept after redundancy pruning: {kept}")
+
+            # Build a readable table for top features by relevance
+            names = (
+                self.feature_names_in_
+                if self.feature_names_in_ is not None
+                else np.array([f"x{i}" for i in range(n_features)])
+            )
+
+            mask = self._get_support_mask()
+
+            rep = pd.DataFrame(
+                {
+                    "feature": names,
+                    "abs_spearman_with_target": self.relevance_scores_,
+                    "selected": mask,
+                }
+            ).sort_values("abs_spearman_with_target", ascending=False)
+
+            print("\nTop features by relevance (highest |Spearman| first):")
+            _maybe_display(rep.head(self.verbose_top_n), max_rows=self.verbose_top_n)
+
+            if self.verbose_plot:
+                top = rep.head(self.verbose_top_n)
+                if len(top) > 0:
+                    plt.figure()
+                    plt.title("Top feature relevance (|Spearman with target|)")
+                    plt.barh(top["feature"][::-1], top["abs_spearman_with_target"][::-1])
+                    plt.xlabel("|Spearman correlation|")
+                    plt.tight_layout()
+                    plt.show()
+
         return self
 
     def _get_support_mask(self):
@@ -1367,10 +1743,19 @@ class SpearmanRelevancyRedundancySelector(BaseEstimator, SelectorMixin):
 
         return names[self._get_support_mask()]
 
+
 ################################################################################
 
 class MutualInfoThresholdSelector(BaseEstimator, TransformerMixin):
-    def __init__(self, threshold=0.01, n_neighbors=10, random_state=42):
+    def __init__(
+        self,
+        threshold=0.01,
+        n_neighbors=10,
+        random_state=42,
+        verbose=False,
+        verbose_top_n=15,
+        verbose_plot=True,
+    ):
         """
         threshold: Minimum MI score required to keep a feature.
         n_neighbors: Parameter for the internal MI calculation.
@@ -1378,143 +1763,159 @@ class MutualInfoThresholdSelector(BaseEstimator, TransformerMixin):
         self.threshold = threshold
         self.n_neighbors = n_neighbors
         self.random_state = random_state
+        self.verbose = verbose
+        self.verbose_top_n = verbose_top_n
+        self.verbose_plot = verbose_plot
+
         self.mask_ = None
         self.feature_names_in_ = None
 
-    def fit(self, X, y):
-        # Save input feature names if available (for pandas output)
-        if hasattr(X, "columns"):
-            self.feature_names_in_ = np.array([str(c) for c in X.columns])
-        else:
-            self.feature_names_in_ = None
+    def _encode_if_needed(self, X):
+        """
+        MI needs numeric input. If X contains non-numeric columns, we one-hot encode (pandas get_dummies)
+        and remember the resulting columns for consistent transform().
 
-        # Calculate Mutual Information Scores (assume X is all numeric here (handled by your previous pipeline steps))
-        self.scores_ = mutual_info_regression(X, y, n_neighbors=self.n_neighbors, random_state=self.random_state)
+        This makes your quick notebook snippet work directly on X_fe (which still has strings).
+        """
+        if isinstance(X, pd.DataFrame):
+            self.feature_names_in_ = np.array([str(c) for c in X.columns])
+
+            # if already all numeric, keep as-is
+            if all(pd.api.types.is_numeric_dtype(X[c]) for c in X.columns):
+                X_num = X.copy()
+                self.enc_columns_ = list(X_num.columns)
+                self.discrete_mask_ = np.array([False] * X_num.shape[1])
+                return X_num
+
+            # else: encode categoricals
+            cat_cols = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+            X_enc = pd.get_dummies(X, columns=cat_cols, drop_first=False, dummy_na=True)
+
+            self.enc_columns_ = list(X_enc.columns)
+
+            # discrete mask: columns created from categoricals are discrete; numeric originals treated as continuous
+            discrete_mask = np.array([False] * X_enc.shape[1])
+            for c in cat_cols:
+                prefix = f"{c}_"
+                for j, colname in enumerate(self.enc_columns_):
+                    if colname.startswith(prefix):
+                        discrete_mask[j] = True
+            self.discrete_mask_ = discrete_mask
+            return X_enc
+
+        # numpy array input (assume already numeric)
+        self.feature_names_in_ = None
+        self.enc_columns_ = None
+        self.discrete_mask_ = None
+        return X
+
+    def fit(self, X, y):
+        # Encode if needed (so your direct notebook snippet works)
+        X_enc = self._encode_if_needed(X)
+
+        # Calculate Mutual Information Scores
+        if isinstance(X_enc, pd.DataFrame):
+            X_mat = X_enc.values
+            feature_names = np.array(self.enc_columns_, dtype=object)
+        else:
+            X_mat = X_enc
+            feature_names = None
+
+        # discrete_features only if we computed it (mixed data)
+        if getattr(self, "discrete_mask_", None) is not None:
+            self.scores_ = mutual_info_regression(
+                X_mat,
+                y,
+                n_neighbors=self.n_neighbors,
+                random_state=self.random_state,
+                discrete_features=self.discrete_mask_,
+            )
+        else:
+            self.scores_ = mutual_info_regression(
+                X_mat,
+                y,
+                n_neighbors=self.n_neighbors,
+                random_state=self.random_state,
+            )
 
         # 3. Create Mask based on Threshold
         self.mask_ = self.scores_ > self.threshold
+
+        # store names for downstream / verbose
+        self.feature_names_enc_ = feature_names
+
+        # Verbose report
+        if self.verbose:
+            _print_section("MutualInfoThresholdSelector report")
+
+            n_total = len(self.scores_)
+            n_kept = int(np.sum(self.mask_))
+
+            print(f"Threshold: MI >= {self.threshold}")
+            print(f"Total features: {n_total}")
+            print(f"Kept features : {n_kept}")
+
+            names = (
+                self.feature_names_enc_
+                if self.feature_names_enc_ is not None
+                else np.array([f"x{i}" for i in range(n_total)])
+            )
+
+            rep = pd.DataFrame(
+                {
+                    "feature": names,
+                    "mutual_information": self.scores_,
+                    "selected": self.mask_,
+                }
+            ).sort_values("mutual_information", ascending=False)
+
+            print("\nTop features by mutual information:")
+            _maybe_display(rep.head(self.verbose_top_n), max_rows=self.verbose_top_n)
+
+            if self.verbose_plot:
+                top = rep.head(self.verbose_top_n)
+                if len(top) > 0:
+                    plt.figure()
+                    plt.title("Top feature importance (Mutual Information)")
+                    plt.barh(top["feature"][::-1], top["mutual_information"][::-1])
+                    plt.xlabel("Mutual information")
+                    plt.tight_layout()
+                    plt.show()
+
         return self
 
     def transform(self, X):
         if self.mask_ is None:
             raise NotFittedError("Selector not fitted.")
 
-        # Handle DataFrame vs Numpy (depending on the setting in the pipeline (e.g. df in the debug transformer))
-        if hasattr(X, "loc"):
+        # Transform must mirror fit encoding
+        if isinstance(X, pd.DataFrame):
+            # if fit used encoding (enc_columns_ exists), apply it; else assume numeric DF
+            if getattr(self, "enc_columns_", None) is not None:
+                # encode using same logic as fit (same cat columns inference)
+                cat_cols = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+                X_enc = pd.get_dummies(X, columns=cat_cols, drop_first=False, dummy_na=True)
+
+                # align to training columns
+                X_enc = X_enc.reindex(columns=self.enc_columns_, fill_value=0)
+
+                return X_enc.loc[:, self.mask_]
+
+            # numeric-only DF path
             return X.loc[:, self.mask_]
+
+        # numpy path
         return X[:, self.mask_]
 
     def get_support(self):
         return self.mask_
 
-
-
-################################################################################
-# Helpers for FunctionTransformer
-################################################################################
-
-class NamedFunctionTransformer(FunctionTransformer):  # TODO check if this is really necessary or can be removed when implementing get_feature_names_out everywhere clean
-    """
-    FunctionTransformer variant that can expose feature names downstream.
-
-    This is helpful if:
-    - You use set_output(transform="pandas") and want meaningful column names
-    - You use DebugTransformer and want readable outputs
-    """
-
-    def __init__(self, func=None, feature_names=None, **kwargs):
-        # store as attribute so sklearn.get_params can access it
-        self.feature_names = feature_names
-        super().__init__(func=func, **kwargs)
-
     def get_feature_names_out(self, input_features=None):
-        # Fixed: use self.feature_names instead of self._feature_names
-        if self.feature_names is not None:
-            return np.asarray(self.feature_names, dtype=object)
-        # IMPORTANT: Return input_features if no custom names provided
-        if input_features is not None:
-            return np.asarray(input_features, dtype=object)
-        # Last resort: return generic names based on n_features_in_
-        if hasattr(self, "n_features_in_"):
-            return np.asarray([f"x{i}" for i in range(self.n_features_in_)], dtype=object)
-        # Cannot determine feature names
-        return None
-
-
-################################################################################
-# Model Setup and Evaluation
-################################################################################
-
-
-def create_model_pipe(prepro_pipe, model):
-    # Clone preprocessor and model just to ensure that no state is shared between different model pipelines
-    prepro_pipe_clone = clone(prepro_pipe)
-    model_clone = clone(model)
-    model_pipe = Pipeline([
-        ("preprocess", prepro_pipe_clone),
-        ("model", model_clone),
-    ])
-    return model_pipe
-
-def get_cv_results(models, X_train, y_train, cv, rs):
-
-    results = []
-
-    for name, model in {**models}.items():
-        print(f"Fitting {name} with cross-validation...")
-        
-        # Use same cross-validation setup for all models and same split as later in hyperparameter tuning
-        cv_results = cross_validate(
-            model, 
-            X_train, 
-            y_train,
-            cv=cv,
-            scoring={
-                'neg_mae': 'neg_mean_absolute_error',
-                'neg_mse': 'neg_mean_squared_error',
-                'r2': 'r2'
-            },
-            return_train_score=True,
-            n_jobs=-1,
-            verbose=0,
-        )
-        
-        # Calculate mean metrics across folds
-        mae = -cv_results['test_neg_mae'].mean().round(4)
-        std_mae = cv_results['test_neg_mae'].std().round(4)
-        rmse = np.sqrt(-cv_results['test_neg_mse'].mean()).round(4)
-        r2 = cv_results['test_r2'].mean().round(4)
-        train_mae = -cv_results['train_neg_mae'].mean().round(4)
-        train_std_mae = cv_results['train_neg_mae'].std().round(4)
-        train_rmse = np.sqrt(-cv_results['train_neg_mse'].mean()).round(4)
-        train_r2 = cv_results['train_r2'].mean().round(4)
-        
-        results.append({
-            "model": name,
-            "preprocessing": "original" if "orig" in name else "optimized",
-            "val_MAE": mae,
-            "std_MAE": std_mae,
-            "val_RMSE": rmse,
-            "val_R2": r2,
-            "train_MAE": train_mae,
-            "train_std_MAE": train_std_mae,
-            "train_RMSE": train_rmse,
-            "train_R2": train_r2
-
-        })
-        print(f"{name}: CV Performance on val:")
-        print(f"val_MAE:  {mae:,.4f}")
-        print(f"val_RMSE: {rmse:,.4f}")
-        print(f"val_R2:   {r2:,.4f}")
-        print(f"Completed {name}")
-
-    results_df = (
-        pd.DataFrame(results)
-        .sort_values(["preprocessing", "val_MAE"])
-        .reset_index(drop=True)
-    )
-    
-    return results_df
+        if getattr(self, "feature_names_enc_", None) is not None:
+            return np.array(self.feature_names_enc_, dtype=object)[self.mask_]
+        if input_features is None:
+            return np.array([f"x{i}" for i in range(len(self.mask_))], dtype=object)[self.mask_]
+        return np.array(input_features, dtype=object)[self.mask_]
 
 
 ################################################################################
