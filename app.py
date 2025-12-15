@@ -250,7 +250,7 @@ if predict_button:
                 )
             
             # Confidence interval
-            mae = 1300
+            mae = 1200
             lower_bound = max(0, pred_price - mae)
             upper_bound = pred_price + mae
             
@@ -280,7 +280,7 @@ with st.sidebar:
     st.header("About")
     
     st.markdown("""
-    This tool predicts used car prices using a Random Forest machine learning model, trained on 75,969 vehicles from 1970 to 2020 with prices ranging from £450 to £159,999.
+    This tool predicts used car prices using a Random Forest machine learning model, trained on ~76,000 vehicles from 1970 to 2020 with prices ranging from £450 to £159,999.
     """)
     
     st.divider()
@@ -314,11 +314,9 @@ with st.sidebar:
     # Model Performance
     st.header("Model Performance")
     
-    col3, col4 = st.columns(2)
-    with col3:
-        st.metric("Average Error", "±£1,300")
-    with col4:
-        st.metric("R² Score", "0.944")
+    st.metric("Average Error", "±£1,200")
+    
+    st.markdown("Evaluated on ~32,500 test samples")
     
     st.divider()
 
