@@ -288,15 +288,19 @@ with st.sidebar:
     # Dataset Coverage
     st.header("Dataset Coverage")
 
-    st.markdown(f"""
+    st.markdown("""
     The model was trained on a total of **9 brands** and **114 models**.  
     Peak performance is achieved on the following brands, which are best represented in the training data:
+    """)
     
-    {chr(10).join([f"• {b}" for b in sorted(BRAND_MODELS.keys()) if b != "Other"])}
+    # Brands
+    for brand_item in sorted(BRAND_MODELS.keys()):
+        if brand_item != "Other":
+            st.markdown(f"• {brand_item}")
     
+    st.markdown("""
     Prices for all other brands and models can still be estimated by leveraging their remaining vehicle attributes.
     """)
-       
     
     # Detailed view on request
     if st.checkbox("Show best performing brands & models", key="show_models"):
