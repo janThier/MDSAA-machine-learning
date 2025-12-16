@@ -411,7 +411,7 @@ class DebugTransformer(BaseEstimator, TransformerMixin):
 
 
 ################################################################################
-# Data Cleaning (CarDataCleaner)  -- FINAL VERSION
+# Data Cleaning (CarDataCleaner)
 ################################################################################
 
 class CarDataCleaner(BaseEstimator, TransformerMixin):
@@ -590,6 +590,12 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
 
         if self.set_carid_index and "carID" in df.columns:
             df = df.set_index("carID")
+
+        if "Brand" in df.columns and "brand" not in df.columns:
+            df = df.rename(columns={"Brand": "brand"})
+
+        if "paintQuality%" in df.columns and "paintQuality" not in df.columns:
+            df = df.rename(columns={"paintQuality%": "paintQuality"})
 
         # NUMERICAL COLUMNS
         def _track_new_nans(col, before, after):
@@ -1172,7 +1178,7 @@ class IndividualHierarchyImputer(BaseEstimator, TransformerMixin):
         self.year_by_mileage_bin_ = {}
         self.mileage_bins_ = None
         
-        # Learn group statistics (only from non-null values)
+        ### Learn group statistics (only from non-null values)
         # Learn mode of model for brand
         valid = df[["model", "brand"]].dropna()
         if not valid.empty:
@@ -1191,27 +1197,27 @@ class IndividualHierarchyImputer(BaseEstimator, TransformerMixin):
 
                     
         # Learn mode of model using different combinations (stored in separate dicts)
-        # 1. (brand, engineSize, fuelType, transmission) - most specific
+        # 1. (brand, engineSize, fuelType, transmission)
         valid = df[["brand", "engineSize", "fuelType", "transmission", "model"]].dropna()
         if not valid.empty:
             self.model_by_brand_engineSize_fuelType_transmission_ = valid.groupby(["brand", "engineSize", "fuelType", "transmission"])["model"].agg(self._safe_mode).to_dict()
         
-        # 2. (brand, fuelType, transmission) - when engineSize missing
+        # 2. (brand, fuelType, transmission) when engineSize missing
         valid = df[["brand", "fuelType", "transmission", "model"]].dropna()
         if not valid.empty:
             self.model_by_brand_fuelType_transmission_ = valid.groupby(["brand", "fuelType", "transmission"])["model"].agg(self._safe_mode).to_dict()
         
-        # 3. (brand, engineSize, transmission) - when fuelType missing
+        # 3. (brand, engineSize, transmission): when fuelType missing
         valid = df[["brand", "engineSize", "transmission", "model"]].dropna()
         if not valid.empty:
             self.model_by_brand_engineSize_transmission_ = valid.groupby(["brand", "engineSize", "transmission"])["model"].agg(self._safe_mode).to_dict()
         
-        # 4. (brand, engineSize, fuelType) - when transmission missing
+        # 4. (brand, engineSize, fuelType) when transmission missing
         valid = df[["brand", "engineSize", "fuelType", "model"]].dropna()
         if not valid.empty:
             self.model_by_brand_engineSize_ = valid.groupby(["brand", "engineSize", "fuelType"])["model"].agg(self._safe_mode).to_dict()
         
-        # 5. (brand) - fallback to brand only
+        # 5. (brand) fallback to brand only
         valid = df[["brand", "model"]].dropna()
         if not valid.empty:
             self.model_by_brand_ = valid.groupby("brand")["model"].agg(self._safe_mode).to_dict()
@@ -1320,7 +1326,7 @@ class IndividualHierarchyImputer(BaseEstimator, TransformerMixin):
         """Apply learned imputation rules."""
         df = pd.DataFrame(X).copy()
         
-        # Impute brand with hierarchical lookup: model → (fuelType, transmission) → fuelType → global
+        # Impute brand with hierarchical lookup: model -> (fuelType, transmission) -> fuelType -> global
         mask = df["brand"].isna()
         if mask.any():
             df.loc[mask, "brand"] = df.loc[mask, "model"].map(self.brand_by_model_)
@@ -1372,7 +1378,7 @@ class IndividualHierarchyImputer(BaseEstimator, TransformerMixin):
         # Final fallback to global mode
         df["model"] = df["model"].fillna(self.global_model_)
         
-        # Impute fuelType with hierarchical lookup: (model, tax) → model → brand → global
+        # Impute fuelType with hierarchical lookup: (model, tax) -> model -> brand -> global
         mask = df["fuelType"].isna()
         if mask.any():
             # Try (model, tax) combination first
@@ -1403,7 +1409,7 @@ class IndividualHierarchyImputer(BaseEstimator, TransformerMixin):
         
         df["transmission"] = df["transmission"].fillna(self.global_transmission_)
         
-        # Impute mpg with hierarchical lookup: (model, engineSize) → model → engineSize → global
+        # Impute mpg with hierarchical lookup: (model, engineSize) -> model -> engineSize -> global
         mask = df["mpg"].isna()
         if mask.any():
             # Try (model, engineSize) combination first
@@ -1422,7 +1428,7 @@ class IndividualHierarchyImputer(BaseEstimator, TransformerMixin):
         
         df["mpg"] = df["mpg"].fillna(self.global_mpg_)
         
-        # Impute tax with hierarchical lookup: (model, engineSize) → model → global
+        # Impute tax with hierarchical lookup: (model, engineSize) -> model -> global
         mask = df["tax"].isna()
         if mask.any():
             # Try (model, engineSize) combination first
@@ -1528,17 +1534,7 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
         age = self.ref_year_ - X["year"]
         X["age"] = age
 
-        # 2. Interaction effects to capture non-additive information (learn conditional relationships and potentially skyrocket their importance):
-        #       - It helps to solve multicolinearity between features by combining them into one feature creating a new signal
-        #       => Only spearman correlations > 0.2 are regarded
-        #       - Use Multiplication if we think two features "boost" each other (e.g., Length*Width = Area).
-        #       - Use Division if we need to "fairly compare" items of different sizes (e.g., Cost/Weight = Price per kg)
-        #       -> Mult or Div has to be chosen based on the logic of the relationship
-        #       Multiplication: The Amplifier (model synergy or joint occurrence: "The presence of A makes B more effective") -> capture simultaneous impact of two things
-
         X["mpg_x_engine"] = X["mpg"] * X["engineSize"]
-
-        # Removed because of high multicolinearity and lower corr with price: X['mileage_x_mpg'] = X['mileage'] * X[s'mpg'] # Higher mileage cars tend to have lower MPG (people drive lower mpg cars more often) -> amplify effect
 
         # Add 1 to age because if age is 0 (this year) the value would be lost otherwise
         X["engine_x_age"] = X["engineSize"] * (X["age"] + 1)  # Highlight the aspect of old cars with big engines for that time which were very valuable and might therefore still be valuable
@@ -1547,7 +1543,6 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
         X["tax_x_age"] = X["tax"] * (X["age"] + 1)
 
         ###### Division: The Normalizer (create ratios, rates, or efficiency metrics: "How much of A do we have per unit of B?") -> removes the influence of the divisor
-        ### Normalize by Age to capture how features behave relative to the car's age
 
         # Miles per Year: Normalizes mileage by age -> reveals how much a car was really driven per year
         X["miles_per_year"] = X["mileage"] / (X["age"] + 1)  # Add 1 to age because if age is 0 (this year) the division would fail (dont impute with 1 bc then its the same as 1 year old instead of being from this year)
@@ -1742,8 +1737,6 @@ class SpearmanRelevancyRedundancySelector(BaseEstimator, SelectorMixin):
         # Convert to Numpy for speed, ensure y is correct shape
         X_arr, y_arr = check_X_y(X, y, dtype=None)
         n_features = X_arr.shape[1]
-
-        # TODO maybe use Kendalls tau or cramers V for categorical features?
 
         # 1) Relevance Filtering (Filter out weak features first)
         relevance_scores = []
@@ -2262,3 +2255,169 @@ def model_hyperparameter_tuning(
             plt.show()
 
     return model_random.best_estimator_, model_random, model_scores
+
+
+####### Output compatible wrapper #######
+
+class SetOutputCompatibleWrapper(BaseEstimator, TransformerMixin):
+    """
+    Wrapper that adds set_output compatibility to transformers that don't support it.
+    
+    This is particularly useful for category_encoders transformers like NestedCVWrapper
+    which don't implement sklearn's set_output API introduced in version 1.2+.
+    
+    Parameters
+    ----------
+    transformer : estimator
+        The transformer to wrap. Must implement fit(), transform(), and get_params().
+    
+    Examples
+    --------
+    >>> from category_encoders import QuantileEncoder
+    >>> from category_encoders.wrapper import NestedCVWrapper
+    >>> from sklearn.model_selection import KFold
+    >>> 
+    >>> # Wrap NestedCVWrapper to make it compatible with set_output
+    >>> encoder = SetOutputCompatibleWrapper(
+    ...     NestedCVWrapper(
+    ...         QuantileEncoder(quantile=0.5, m=10.0),
+    ...         cv=KFold(n_splits=5, shuffle=True, random_state=42),
+    ...         random_state=42
+    ...     )
+    ... )
+    >>> 
+    >>> # Now you can use set_output
+    >>> encoder.set_output(transform="pandas")
+    """
+    
+    def __init__(self, transformer):
+        self.transformer = transformer
+        self._sklearn_output_config = {}
+    
+    def fit(self, X, y=None, **fit_params):
+        """
+        Fit the wrapped transformer.
+        
+        Parameters
+        ----------
+        X : array-like or DataFrame
+            Training data.
+        y : array-like, optional
+            Target values.
+        **fit_params : dict
+            Additional fit parameters.
+            
+        Returns
+        -------
+        self : object
+            Returns self.
+        """
+        self.transformer.fit(X, y, **fit_params)
+        return self
+    
+    def transform(self, X):
+        """
+        Transform the data using the wrapped transformer.
+        
+        Automatically converts output to pandas DataFrame if set_output
+        was configured with transform="pandas".
+        
+        Parameters
+        ----------
+        X : array-like or DataFrame
+            Data to transform.
+            
+        Returns
+        -------
+        X_transformed : array-like or DataFrame
+            Transformed data. Type depends on set_output configuration.
+        """
+        result = self.transformer.transform(X)
+        
+        # If pandas output is requested and result is numpy, convert it
+        if self._sklearn_output_config.get("transform") == "pandas" and not isinstance(result, pd.DataFrame):
+            if isinstance(X, pd.DataFrame):
+                # Preserve index and use original column names if possible
+                result = pd.DataFrame(result, index=X.index, columns=X.columns)
+        
+        return result
+    
+    def fit_transform(self, X, y=None, **fit_params):
+        """
+        Fit and transform in one step.
+        
+        Parameters
+        ----------
+        X : array-like or DataFrame
+            Training data.
+        y : array-like, optional
+            Target values.
+        **fit_params : dict
+            Additional fit parameters.
+            
+        Returns
+        -------
+        X_transformed : array-like or DataFrame
+            Transformed data.
+        """
+        return self.fit(X, y, **fit_params).transform(X)
+    
+    def set_output(self, *, transform=None):
+        """
+        Set output container format.
+        
+        Parameters
+        ----------
+        transform : {"default", "pandas"}, default=None
+            Configure output of transform and fit_transform.
+            - "default": Default output format of the transformer
+            - "pandas": DataFrame output
+            - None: Transform configuration is unchanged
+            
+        Returns
+        -------
+        self : object
+            Returns self.
+        """
+        self._sklearn_output_config["transform"] = transform
+        return self
+    
+    def get_params(self, deep=True):
+        """
+        Get parameters for this estimator.
+        
+        Parameters
+        ----------
+        deep : bool, default=True
+            If True, will return the parameters for this estimator and
+            contained subobjects that are estimators.
+            
+        Returns
+        -------
+        params : dict
+            Parameter names mapped to their values.
+        """
+        if deep:
+            return {"transformer": self.transformer, **self.transformer.get_params(deep=True)}
+        return {"transformer": self.transformer}
+    
+    def set_params(self, **params):
+        """
+        Set the parameters of this estimator.
+        
+        Parameters
+        ----------
+        **params : dict
+            Estimator parameters.
+            
+        Returns
+        -------
+        self : object
+            Returns self.
+        """
+        transformer_params = {k: v for k, v in params.items() if k != "transformer"}
+        if transformer_params:
+            self.transformer.set_params(**transformer_params)
+        if "transformer" in params:
+            self.transformer = params["transformer"]
+        return self
