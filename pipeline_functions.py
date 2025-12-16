@@ -433,6 +433,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
     What it does:
     ---------------------------
     1) Schema normalization:
+    # TODO remove renamings and do it only when reading the csv file
        - rename Brand -> brand
        - rename paintQuality% -> paintQuality (then dropped; not available at prediction time)
 
@@ -1108,7 +1109,7 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
 # Missing Values (Imputer)
 ################################################################################
 
-class SimpleHierarchicalImputer(BaseEstimator, TransformerMixin):
+class IndividualHierarchyImputer(BaseEstimator, TransformerMixin):
     """
     Simple hierarchical imputer with specific rules for each column.
     
@@ -1568,8 +1569,6 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
 
         # Add 1 to age because if age is 0 (this year) the value would be lost otherwise
         X["engine_x_age"] = X["engineSize"] * (X["age"] + 1)  # Highlight the aspect of old cars with big engines for that time which were very valuable and might therefore still be valuable
-
-        X["mileage_x_age"] = X["mileage"] * (X["age"] + 1)  # Both are negatively correlated with price -> amplify effect to identify a stronger signal of old abused cars that are probably less valuable
 
         X["mpg_x_age"] = X["mpg"] * (X["age"] + 1)  # Older cars tend to have higher MPG -> amplify effect
         X["tax_x_age"] = X["tax"] * (X["age"] + 1)
