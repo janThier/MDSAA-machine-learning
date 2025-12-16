@@ -11,6 +11,7 @@ single sklearn Pipeline. Each transformer does one job:
 3) SimpleHierarchyImputer       : fills missing values using statistics from similar cars first
 4) CarFeatureEngineer           : creates additional signals (age, ratios, interactions, relative positioning)
 5) Feature selection            : keeps only helpful signals and drops redundant noise
+
 Important rule: transformers must NOT drop rows inside transform(),
 otherwise X and y get misaligned during cross-validation.
 """
@@ -34,14 +35,7 @@ from difflib import get_close_matches
 from ydata_profiling import ProfileReport
 
 from collections import Counter
-
-# Notebook-friendly display (falls back to print in scripts)
-try:
-    from IPython.display import display  # type: ignore
-except Exception:
-    display = None
-
-# Plots used in verbose mode
+from IPython.display import display
 import matplotlib.pyplot as plt
 
 
@@ -750,7 +744,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
 
         # FUZZY (only fills NaNs)
         if self.use_fuzzy:
-            # brand/trans/fuel: only fill NaNs with canonical vocab (very strict)
+            # brand/trans/fuel: only fill NaNs with canonical vocab (strict)
             if "brand" in df.columns and getattr(self, "brand_vocab_", []) and raw_brand is not None:
                 miss = df["brand"].isna() & raw_brand.notna()
                 for idx in df.index[miss]:
@@ -864,12 +858,6 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
                         .sort_values(["column", "count"], ascending=[True, False])
                     )
 
-                    # Ensure “pum -> puma” shows up if it happened (even if not in top_n)
-                    demo_rows = summary[summary["pair"].str.contains(r"^pum\s+->\s+puma$", regex=True, na=False)]
-                    head_rows = summary.head(self.verbose_top_n)
-                    if len(demo_rows) > 0 and not head_rows["pair"].str.contains(r"^pum\s+->\s+puma$", regex=True, na=False).any():
-                        head_rows = pd.concat([demo_rows, head_rows]).drop_duplicates(subset=["column", "pair"])
-
                     print("\nFuzzy matches performed (raw token -> chosen match):")
                     _maybe_display(head_rows, max_rows=self.verbose_top_n)
 
@@ -978,11 +966,11 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
                 upper = q3 + self.iqr_k * iqr
                 col_stats["iqr"] = {"lower": lower, "upper": upper, "q1": q1, "q3": q3, "iqr": iqr}
 
-            # --- Modified Z-score (median + MAD) ---
+            # Modified Z-score (median + MAD)
             if "mod_z" in self.methods:
                 med = float(s.median())
                 mad = float(np.median(np.abs(s - med)))
-                # Avoid division-by-zero (constant-ish feature)
+                # Avoid division-by-zero
                 if mad <= 0:
                     col_stats["mod_z"] = {"lower": -np.inf, "upper": np.inf, "med": med, "mad": mad}
                 else:
@@ -1184,7 +1172,7 @@ class IndividualHierarchyImputer(BaseEstimator, TransformerMixin):
         self.year_by_mileage_bin_ = {}
         self.mileage_bins_ = None
         
-        ### Learn group statistics (only from non-null values)
+        # Learn group statistics (only from non-null values)
         # Learn mode of model for brand
         valid = df[["model", "brand"]].dropna()
         if not valid.empty:
@@ -1499,7 +1487,7 @@ class IndividualHierarchyImputer(BaseEstimator, TransformerMixin):
 
 class CarFeatureEngineer(BaseEstimator, TransformerMixin):
     """
-    Creates domain-informed numeric features inside the pipeline (leakage-safe).
+    Creates domain-informed numeric features inside the pipeline.
 
     Why fit() exists:
     - We learn fold-specific reference statistics (e.g., average age per brand)
@@ -1550,7 +1538,7 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
 
         X["mpg_x_engine"] = X["mpg"] * X["engineSize"]
 
-        # Removed because of high multicolinearity and lower corr with price: X['mileage_x_mpg']          = X['mileage'] * X[s'mpg'] # Higher mileage cars tend to have lower MPG (people drive lower mpg cars more often) -> amplify effect
+        # Removed because of high multicolinearity and lower corr with price: X['mileage_x_mpg'] = X['mileage'] * X[s'mpg'] # Higher mileage cars tend to have lower MPG (people drive lower mpg cars more often) -> amplify effect
 
         # Add 1 to age because if age is 0 (this year) the value would be lost otherwise
         X["engine_x_age"] = X["engineSize"] * (X["age"] + 1)  # Highlight the aspect of old cars with big engines for that time which were very valuable and might therefore still be valuable
@@ -1583,8 +1571,6 @@ class CarFeatureEngineer(BaseEstimator, TransformerMixin):
 
         # fill with 1 if model was not seen during training
         X["engine_rel_model"] = (X["engineSize"] / X["model"].map(self.model_mean_engineSize_).fillna(1.0)).fillna(1.0)  # engine size relative to model mean engine size
-
-        # TODO tax divided by mean model price (affordability within model) # Before that: check whether road tax varies per model
 
         if self.verbose:
             _print_section("CarFeatureEngineer report")
@@ -2167,7 +2153,7 @@ def model_hyperparameter_tuning(
     )
     model_random.fit(X_train, y_train)
 
-    # -------- summary metrics --------
+    # summary metrics
     val_mae = -model_random.cv_results_["mean_test_mae"][model_random.best_index_]
     val_mse = -model_random.cv_results_["mean_test_mse"][model_random.best_index_]
     val_rmse = np.sqrt(val_mse)
@@ -2198,7 +2184,7 @@ def model_hyperparameter_tuning(
     print(f"R²: {val_r2:.4f}")
     print("Best Model params:", model_random.best_params_)
 
-    # -------- verbose plots --------
+    # verbose plots
     if verbose_plot and verbose_features:
         results_df = pd.DataFrame(model_random.cv_results_)
         params_df = pd.json_normalize(results_df["params"])
@@ -2224,8 +2210,8 @@ def model_hyperparameter_tuning(
             raise ValueError(f"Param '{name}' not found in cv_results_ columns.")
 
         # normalize verbose_features into a list of "specs", where each spec is [p1] or [p1,p2]
-        # - if user gives ["p1","p2"] (flat list), treat it as one 2D spec
-        # - if user gives [["p1"],["p3"],["p4","p5"]] -> multiple plots
+        #   - if user gives ["p1","p2"] (flat list), treat it as one 2D spec
+        #   - if user gives [["p1"],["p3"],["p4","p5"]] -> multiple plots
         if len(verbose_features) > 0 and isinstance(verbose_features[0], (list, tuple)):
             specs = [list(s) for s in verbose_features]
         else:
