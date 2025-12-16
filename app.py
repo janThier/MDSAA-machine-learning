@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import ydata_profiling # import required for deployment because it's included in the pipeline
+# import ydata_profiling # import required for deployment because it's included in the pipeline
 
 # BRAND → MODEL MAPPING
 
@@ -65,7 +65,7 @@ model = load_model()
 st.title("Cars 4 You - Price Prediction")
 st.markdown("""
 Enter the car details below to get an AI-powered price estimate based on our machine learning model 
-trained on 75,969 vehicles.
+trained on ~76,000 vehicles.
 """)
 
 st.divider()
@@ -80,8 +80,8 @@ col1, col2 = st.columns(2)
 with col1:
     brand = st.selectbox(
         "Brand",
-        options=sorted(BRAND_MODELS.keys()),
-        index=sorted(BRAND_MODELS.keys()).index("VW"),
+        options=[b for b in sorted(BRAND_MODELS.keys()) if b != "Other"] + ["Other"],
+        index=sorted([b for b in BRAND_MODELS.keys() if b != "Other"]).index("VW"),
         help="Select the car manufacturer",
         key="brand_select"
     )
@@ -280,24 +280,24 @@ with st.sidebar:
     st.header("About")
     
     st.markdown("""
-    This tool predicts used car prices using a Random Forest machine learning model, trained on ~76,000 vehicles from 1970 to 2020 with prices ranging from £450 to £159,999.
+    This tool predicts used car prices using a Random Forest machine learning model, trained on ~76,000 vehicles from 1970 to 2020 with prices ranging from £450 to ~£160,000.
     """)
     
     st.divider()
     
     # Dataset Coverage
     st.header("Dataset Coverage")
-    
-    st.markdown(
-    f"""
-    The model was trained on a total of **9 brands** and **114 models**.  
-    Peak performance is achieved on the following brands, which are best represented in the training data: \n  
-    {", ".join(sorted(BRAND_MODELS.keys()))}
 
+    st.markdown(f"""
+    The model was trained on a total of **9 brands** and **114 models**.  
+    Peak performance is achieved on the following brands, which are best represented in the training data:
+    
+    {chr(10).join([f"• {b}" for b in sorted(BRAND_MODELS.keys()) if b != "Other"])}
+    
     Prices for all other brands and models can still be estimated by leveraging their remaining vehicle attributes.
-    """
-)
-   
+    """)
+       
+    
     # Detailed view on request
     if st.checkbox("Show best performing brands & models", key="show_models"):
         for brand_name in sorted(BRAND_MODELS.keys()):
