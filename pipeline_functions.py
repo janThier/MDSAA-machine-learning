@@ -62,92 +62,92 @@ def _maybe_display(df_or_obj, max_rows=10):
 ################################################################################
 # Canonical maps (shared between fit() and transform())
 ################################################################################
-
+ 
 BRAND_MAP = {
-    "VW": ["VW", "V", "W", "vw", "v", "w"],
-    "Toyota": ["Toyota", "TOYOTA", "Toyot", "toyota", "oyota", "TOYOT", "OYOTA"],
-    "Audi": ["Audi", "AUDI", "A", "udi", "Aud", "audi", "AUD", "UDI"],
-    "Ford": ["Ford", "FORD", "For", "ord", "for", "ORD", "or", "FOR"],
-    "BMW": ["BMW", "bmw", "MW", "BM", "mw"],
-    "Skoda": ["Skoda", "SKODA", "Skod", "koda", "SKOD", "kod", "skoda", "skod", "KODA"],
-    "Opel": ["Opel", "OPEL", "Ope", "opel", "OPE", "pel", "pe", "PEL", "ope"],
-    "Mercedes": ["Mercedes", "MERCEDES", "mercedes", "Mercede", "ercedes", "ERCEDES", "MERCEDE", "ercede", "mercede"],
-    "Hyundai": ["Hyundai", "HYUNDAI", "hyundai", "Hyunda", "yundai", "yunda", "HYUNDA", "hyunda", "yundai", "yunda"],
+    "VW": ["V", "W", "vw", "v", "w"],
+    "Toyota": ["toyot", "toyota", "oyota",],
+    "Audi": ["au", "a", "udi", "aud", "audi"],
+    "Ford": ["ford", "ord", "for", "or", "rd", "fo"],
+    "BMW": ["bmw", "b", "bm", "mw"],
+    "Skoda": ["sk", "koda", "sko", "kod", "skoda", "skod", "oda"],
+    "Opel": ["op", "opel", "pel", "pe", "ope"],
+    "Mercedes": ["mercedes", "mercede", "ercedes", "merc", "cedes", "ercede", "edes"],
+    "Hyundai": ["hyundai", "hyun", "yundai", "yunda", "yund", "hyunda", "yun", "hyund"],
 }
 REVERSE_BRAND = {v.lower(): k for k, vals in BRAND_MAP.items() for v in vals}
 BRAND_NORM_TO_CANON = {k.lower(): k for k in BRAND_MAP.keys()}
 BRAND_CANON_VOCAB = sorted(list(BRAND_NORM_TO_CANON.keys()))
-
+ 
 TRANS_MAP = {
-    "Manual": ["manual", "manua", "anual", "emi-auto", "MANUAL"],
-    "Semi-Auto": ["semi-auto", "semi-aut", "emi-auto"],
-    "Automatic": ["automatic", "automati", "AUTOMATIC", "utomatic", "Automati"],
-    "Unknown": ["unknown", "unknow", "nknown"],
-    "Other": ["Other", "other"],
+    "Manual": ["manual", "manua", "anual", "nual", "manu"],
+    "Semi-Auto": ["semi-auto", "semi-aut", "emi-auto", "sem", "semi", "semiauto"],
+    "Automatic": ["automatic", "automati", "auto", "utomatic", "autom"],
+    "Unknown": ["unknown", "unknow", "nknown", "unkno"],
+    "Other": ["other", "ther", "othe"],
 }
 REVERSE_TRANS = {v.lower(): k for k, vals in TRANS_MAP.items() for v in vals}
 TRANS_NORM_TO_CANON = {k.lower(): k for k in TRANS_MAP.keys()}
 TRANS_CANON_VOCAB = sorted([k.lower() for k in TRANS_MAP.keys() if k != "Unknown"])
-
+ 
 FUEL_MAP = {
     "Petrol": ["petrol", "petro", "etrol", "etro"],
     "Diesel": ["diesel", "dies", "iesel", "diese", "iese", "diesele"],
     "Hybrid": ["hybrid", "ybri", "hybri", "ybrid", "hybridd"],
-    "Electric": ["electric"],
+    "Electric": ["electric", "elec", "electronic", "tric"],
     "Other": ["other", "ther", "othe"],
 }
 REVERSE_FUEL = {v.lower(): k for k, vals in FUEL_MAP.items() for v in vals}
 FUEL_NORM_TO_CANON = {k.lower(): k for k in FUEL_MAP.keys()}
 FUEL_CANON_VOCAB = sorted([k.lower() for k in FUEL_MAP.keys()])
-
+ 
 MODEL_MAP = {
     # VW
     "golf": ["golf", "gol", "golf s", "golf sv"],
-    "passat": ["passat", "passa"],
-    "polo": ["polo", "pol"],
+    "passat": ["passat", "passa", "pass"],
+    "polo": ["polo", "pol", "olo"],
     "tiguan": ["tiguan", "tigua", "tiguan allspace", "tiguan allspac"],
-    "touran": ["touran", "toura"],
-    "tourneo connect": ["tourneo connect"], 
-    "up": ["up", "u"],
-    "sharan": ["sharan", "shara"],
+    "touran": ["touran", "toura", "ouran"],
+    "tourneo connect": ["tourneo connect"],
+    "up": ["up", "u", "p"],
+    "sharan": ["sharan", "shara", "shar"],
     "scirocco": ["scirocco", "sciroc", "scirocc"],
-    "amarok": ["amarok", "amaro"],
-    "arteon": ["arteon", "arteo"],
-    "beetle": ["beetle", "beetl"],
-    "fox": ["fox"],
-    "california": ["california"],
+    "amarok": ["amarok", "amaro", "amar"],
+    "arteon": ["arteon", "arteo", "teon"],
+    "beetle": ["beetle", "beetl", "beet"],
+    "fox": ["fox", "ox", "fo"],
+    "california": ["california", "alifornia", "cali"],
     "t-roc": ["t-roc", "t-ro", "t roc"],
     "t-cross": ["t-cross", "t-cros", "t cross"],
     "touareg": ["touareg", "touare", "touare g"],
-    "jetta": ["jetta"],
-    "cc": ["cc"],
-    "eos": ["eos"],
-    "caravelle": ["caravelle", "caravell"], 
-    "caddy": ["caddy"],
+    "jetta": ["jetta", "etta", "jet"],
+    "cc": ["cc", "c"],
+    "eos": ["eos", "os", "eo"],
+    "caravelle": ["caravelle", "caravell"],
+    "caddy": ["caddy", "addy", "cad"],
     "caddy life": ["caddy life"],
     "caddy maxi": ["caddy maxi"],
-    "caddy maxi life": ["caddy maxi life", "caddy maxi lif"], 
-
+    "caddy maxi life": ["caddy maxi life", "caddy maxi lif"],
+ 
     # Toyota
-    "yaris": ["yaris", "yari"],
+    "yaris": ["yaris", "yari", "yar"],
     "corolla": ["corolla", "corol", "coroll"],
-    "aygo": ["aygo", "ayg"],
+    "aygo": ["aygo", "ayg", "ygo"],
     "rav4": ["rav4", "rav", "rav-4"],
-    "auris": ["auris", "auri"],
-    "avensis": ["avensis", "avens"],
+    "auris": ["auris", "auri", "uris"],
+    "avensis": ["avensis", "avens", "ensis"],
     "c-hr": ["c-hr", "chr", "c-h"],
     "verso": ["verso", "verso-s", "vers"],
-    "hilux": ["hilux", "hilu"],
+    "hilux": ["hilux", "hilu", "lux"],
     "land cruiser": ["land cruiser", "land cruise"],
-    "prius": ["prius"],
+    "prius": ["prius", "rius"],
     "proace verso": ["proace verso"],
-    "gt86": ["gt86"],
-    "supra": ["supra"],
-    "camry": ["camry"],
+    "gt86": ["gt86", "gt"],
+    "supra": ["supra", "sup", "supr"],
+    "camry": ["camry", "amry", "mry"],
     "urban cruiser": ["urban cruiser", "urban cruise"],
     "iq": ["iq"],  
-    "shuttle": ["shuttle"],  
-
+    "shuttle": ["shuttle", "uttle", "shut"],  
+ 
     # Audi
     "a_unknown": ["a_unknown"],
     "q_unknown": ["q_unknown"],
@@ -168,39 +168,39 @@ MODEL_MAP = {
     "sq7": ["sq7"],
     "tt": ["tt"],
     "r8": ["r8", "r 8"],
-    "rs3": ["rs3"],
-    "rs4": ["rs4"],
-    "rs5": ["rs5"],
-    "rs6": ["rs6"],
-    "s3": ["s3"],
-    "s4": ["s4"],
-    "s5": ["s5"],
-    "s8": ["s8"],
-
+    "rs3": ["rs3", "rs 3"],
+    "rs4": ["rs4", "rs 4"],
+    "rs5": ["rs5", "rs 5"],
+    "rs6": ["rs6", "rs 6"],
+    "s3": ["s3", "s 3"],
+    "s4": ["s4", "s 4"],
+    "s5": ["s5", "s 5"],
+    "s8": ["s8", "s 8"],
+ 
     # Ford
     "fiesta": ["fiesta", "fiest"],
     "focus": ["focus", "focu"],
     "mondeo": ["mondeo", "monde"],
     "kuga": ["kuga", "kug"],
     "ecosport": ["ecosport", "eco sport", "ecospor"],
-    "puma": ["puma"],  
+    "puma": ["puma", "pum"],  
     "edge": ["edge", "edg"],
     "s-max": ["s-max", "s-ma", "smax"],
     "c-max": ["c-max", "c-ma", "cmax"],
     "b-max": ["b-max", "b-ma", "bmax"],
     "ka+": ["ka+", "ka", "streetka"],
-    "fusion": ["fusion"],
+    "fusion": ["fusion", "fusio"],
     "galaxy": ["galaxy", "galax"],
     "tourneo custom": ["tourneo custom", "tourneo custo"],
     "grand tourneo connect": ["grand tourneo connect", "grand tourneo connec"],
-    "mustang": ["mustang"],
-    "ranger": ["ranger"],
-    "escort": ["escort"],
+    "mustang": ["mustang", "ustang"],
+    "ranger": ["ranger", "anger"],
+    "escort": ["escort", "cord"],
     "grand c-max": ["grand c-max", "grand c-ma"],
     "rapid": ["rapid", "rapi"],
-
+ 
     # BMW
-     "1 series": ["1 series", "1 serie", "1 ser", "1series"],
+    "1 series": ["1 series", "1 serie", "1 ser", "1series"],
     "2 series": ["2 series", "2 serie", "2series"],
     "3 series": ["3 series", "3 serie", "3series"],
     "4 series": ["4 series", "4 serie", "4series"],
@@ -227,64 +227,65 @@ MODEL_MAP = {
     "i2": ["i2"],
     "i3": ["i3"],
     "i8": ["i8"],
-
+ 
     # Skoda
     "fabia": ["fabia", "fabi"],
     "octavia": ["octavia", "octavi", "octa"],
-    "superb": ["superb", "super"],
-    "scala": ["scala", "scal"],
-    "karoq": ["karoq", "karo"],
+    "superb": ["superb", "super", "sup"],
+    "scala": ["scala", "scal", "cala"],
+    "karoq": ["karoq", "karo", "aroq"],
     "kodiaq": ["kodiaq", "kodia", "kodi"],
-    "kamiq": ["kamiq", "kami"],
+    "kamiq": ["kamiq", "kami", "miq"],
     "yeti": ["yeti", "yeti outdoor", "yeti outdoo", "yet"],
-    "citigo": ["citigo", "citig"],
-    "roomster": ["roomster", "roomste"], 
-
+    "citigo": ["citigo", "citig", "itigo"],
+    "roomster": ["roomster", "roomste", "room"],
+ 
     # Opel
     "astra": ["astra", "astr", "gtc"],
-    "corsa": ["corsa", "cors"],
+    "corsa": ["corsa", "cors", "orsa"],
     "insignia": ["insignia", "insigni"],
     "mokka": ["mokka", "mokk", "mokka x", "mokkax"],
-    "zafira": ["zafira", "zafir"],
+    "zafira": ["zafira", "zafir", "fira"],
     "zafira tourer": ["zafira tourer", "zafira toure"],
-    "meriva": ["meriva", "meriv"],
+    "meriva": ["meriva", "meriv", "riva"],
     "adam": ["adam", "ad", "ada"],
-    "vectra": ["vectra", "vectr"],
-    "antara": ["antara", "anta"],
+    "vectra": ["vectra", "vectr", "ctra"],
+    "antara": ["antara", "anta", "tara"],
     "combo life": ["combo life", "combo lif"],
     "grandland x": ["grandland x", "grandland"],
     "crossland x": ["crossland x", "crossland"],
-    "cascada": ["cascada"],
-    "ampera": ["ampera"],
-    "tigra": ["tigra"],
-    "vivaro": ["vivaro"],
+    "cascada": ["cascada", "ascada"],
+    "ampera": ["ampera", "mpera"],
+    # you wont find leakage here *** :-)
+    "tigra": ["tigra", "igra"],
+    "vivaro": ["vivaro", "varo"],
     "viva": ["viva", "viv"],
-    "agila": ["agila"],
-
+    "agila": ["agila", "agil"],
+ 
     # Mercedes
     "a class": ["a class", "a clas", "a-class"],
     "b class": ["b class", "b clas", "b-class"],
     "c class": ["c class", "c clas", "c-class"],
     "e class": ["e class", "e clas", "e-class"],
     "s class": ["s class", "s clas", "s-class"],
-    "glc class": ["glc class"], #"glc clas"], to show that FUZZY works
+    "glc class": ["glc class"],
     "gle class": ["gle class", "gle clas"],
     "gla class": ["gla class", "gla clas"],
     "cls class": ["cls class", "cls clas"],
-    "glb class": ["glb class"],
+    "glb class": ["glb class", "glb"],
     "gls class": ["gls class", "gls clas"],
     "gl class": ["gl class", "gl clas"],
-    "cla class": ["cla class"],
+    "cla class": ["cla class", "cla"],
     "m class": ["m class", "m clas"],
     "sl class": ["sl class", "sl clas", "sl"],  
     "cl class": ["cl class", "cl clas"],
-    "clc class": ["clc class"],
+    "clc class": ["clc class", "clc"],
     "v class": ["v class", "v clas"],
     "x-class": ["x-class", "x-clas"],
-    "g class": ["g class"],
+    "g class": ["g class", "g-clas"],
     "slk": ["slk"],
     "clk": ["clk"],
-
+ 
     # Hyundai
     "i10": ["i10", "i 10"],
     "i20": ["i20", "i 20"],
@@ -293,15 +294,15 @@ MODEL_MAP = {
     "ioniq": ["ioniq", "ioni"],
     "ix20": ["ix20", "ix 20", "ix2"],  
     "ix35": ["ix35", "ix 35"],
-    "kona": ["kona", "kon"],
-    "tucson": ["tucson", "tucso"],
-    "santa fe": ["santa fe", "santa f"],
-    "getz": ["getz"],
-    "accent": ["accent"],
+    "kona": ["kona", "kon", "ona"],
+    "tucson": ["tucson", "tucso", "tucs"],
+    "santa fe": ["santa fe", "santa f", "santa"],
+    "getz": ["getz", "etz"],
+    "accent": ["accent", "acce", "ccent"],
     "i800": ["i800", "i80"],
-    "veloster": ["veloster", "veloste"],
-    "terracan": ["terracan"],
-
+    "veloster": ["veloster", "veloste", "eloster"],
+    "terracan": ["terracan", "terra"],
+ 
 }
 
 REVERSE_MODEL = {v.lower(): k for k, vals in MODEL_MAP.items() for v in vals}
@@ -361,18 +362,11 @@ for brand, models in {
 
 class DebugTransformer(BaseEstimator, TransformerMixin):
     """
-    DebugTransformer (optional)
-    ---------------------------
-    Prints shape/type and optionally shows a small preview of the data flowing
-    through the pipeline.
-
-    Why this exists:
-    - Pipelines can be hard to inspect because intermediate outputs change types
-      (DataFrame → array → sparse matrix).
-    - This step makes the pipeline "transparent" during development.
+    Prints shape/type and optionally shows a small preview of the data flowing through the pipeline
+    -> make the pipeline "transparent" during development
 
     Safe defaults:
-    - show_data=False (no messy printing unless wanted)
+    - show_data=False
     - y_data_profiling=False
     """
 
@@ -408,10 +402,10 @@ class DebugTransformer(BaseEstimator, TransformerMixin):
                             title="Car Data Profiling Report",
                             correlations={
                                 "pearson": {"calculate": True},
-                                "spearman": {"calculate": False},
-                                "kendall": {"calculate": False},
-                                "phi_k": {"calculate": False},
-                                "cramers": {"calculate": False},
+                                "spearman": {"calculate": True},
+                                "kendall": {"calculate": True},
+                                "phi_k": {"calculate": True},
+                                "cramers": {"calculate": True},
                             },
                         )
                         profile.to_notebook_iframe()
@@ -432,20 +426,16 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
 
     What it does:
     ---------------------------
-    1) Schema normalization:
-    # TODO remove renamings and do it only when reading the csv file
-       - rename Brand -> brand
-       - rename paintQuality% -> paintQuality (then dropped; not available at prediction time)
 
-    2) Numeric sanity checks:
+    1) Numeric sanity checks:
        - coercion to numeric types
        - invalid ranges are set to NaN (NOT dropped) so imputers can handle them
 
-    3) Categorical canonicalization:
+    2) Categorical canonicalization:
        - normalize case/whitespace
        - map known typos/variants into one canonical label using explicit dictionaries
 
-    4) Conservative fuzzy fallback:
+    3) Conservative fuzzy fallback:
        - Only tries to fill values that are still missing AFTER deterministic mapping
        - Vocabulary is learned in fit() from the training fold -> leakage-safe in CV
        - Guardrails prevent dangerous guessing (e.g., 1-letter tokens like "a")
@@ -453,6 +443,8 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
     Notes
     -----
     - paintQuality is dropped because it is not available for predictions (filled by mechanic).
+    - electricVehicles are handled because there are only 4 cars and 2 entries are wrong. 
+      In addition, their price and characteristics structure differs strongly (cannot generalize) from combustion cars.
     """
 
     def __init__(
@@ -604,12 +596,6 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
 
         if self.set_carid_index and "carID" in df.columns:
             df = df.set_index("carID")
-
-        if "Brand" in df.columns and "brand" not in df.columns:
-            df = df.rename(columns={"Brand": "brand"})
-
-        if "paintQuality%" in df.columns and "paintQuality" not in df.columns:
-            df = df.rename(columns={"paintQuality%": "paintQuality"})
 
         # NUMERICAL COLUMNS
         def _track_new_nans(col, before, after):
@@ -1175,7 +1161,6 @@ class IndividualHierarchyImputer(BaseEstimator, TransformerMixin):
         self.brand_by_model_ = {}
         self.brand_by_fuelType_transmission_ = {}
         self.brand_by_fuelType_ = {}
-        # Separate lookup tables for different combination lengths
         self.model_by_brand_engineSize_fuelType_transmission_ = {}
         self.model_by_brand_fuelType_transmission_ = {}
         self.model_by_brand_engineSize_transmission_ = {}
