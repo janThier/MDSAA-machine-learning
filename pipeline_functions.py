@@ -960,7 +960,7 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
                 self.stats_[col] = {}
                 continue
 
-            # NEW: skip very low-cardinality numeric columns (often discrete schedules like road-tax bands)
+            # Skip very low-cardinality numeric columns (often discrete schedules like road-tax bands)
             if self.skip_discrete:
                 nunq = int(s.nunique(dropna=True))
                 if nunq <= int(self.discrete_unique_thresh):
@@ -969,7 +969,7 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
 
             col_stats = {}
 
-            # --- IQR fences ---
+            # IQR fences
             if "iqr" in self.methods:
                 q1 = float(s.quantile(0.25))
                 q3 = float(s.quantile(0.75))
