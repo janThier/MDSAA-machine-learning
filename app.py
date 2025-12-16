@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import joblib
-# import ydata_profiling # import required for deployment because it's included in the pipeline
 
 # BRAND → MODEL MAPPING
 
@@ -64,8 +63,7 @@ model = load_model()
 
 st.title("Cars 4 You - Price Prediction")
 st.markdown("""
-Enter the car details below to get an AI-powered price estimate based on our machine learning model 
-trained on ~76,000 vehicles.
+Enter the car details below to get an AI-powered price estimate based on our machine learning model.
 """)
 
 st.divider()
@@ -250,7 +248,7 @@ if predict_button:
                 )
             
             # Confidence interval
-            mae = 1200
+            mae = 1170
             lower_bound = max(0, pred_price - mae)
             upper_bound = pred_price + mae
             
@@ -280,7 +278,7 @@ with st.sidebar:
     st.header("About")
     
     st.markdown("""
-    This tool predicts used car prices using a Random Forest machine learning model, trained on ~76,000 vehicles from 1970 to 2020 with prices ranging from £450 to ~£160,000.
+    This tool predicts used car prices using a machine learning model, trained on ~76,000 vehicles from 1970 to 2020 with prices ranging from £450 to ~£160,000.
     """)
     
     st.divider()
@@ -320,7 +318,7 @@ with st.sidebar:
     # Model Performance
     st.header("Model Performance")
     
-    st.metric("Average Error", "±£1,200")
+    st.metric("Average Error", "±£1,170")
     
     st.markdown("Evaluated on ~32,500 test samples")
     
