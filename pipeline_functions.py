@@ -6,12 +6,11 @@ Reading guide:
 This file contains small building blocks ("transformers") that are chained into a
 single sklearn Pipeline. Each transformer does one job:
 
-1) CarDataCleaner       : fixes obvious issues (typos, impossible numeric ranges) without dropping rows
-2) OutlierHandler       : reduces the impact of extreme numeric values (winsorization / clipping)
-3) GroupImputer         : fills missing values using statistics from similar cars first
-4) CarFeatureEngineer   : creates additional signals (age, ratios, interactions, relative positioning)
-5) Feature selection    : keeps only helpful signals and drops redundant noise
-
+1) CarDataCleaner               : fixes obvious issues (typos, impossible numeric ranges) without dropping rows
+2) OutlierHandler               : reduces the impact of extreme numeric values (winsorization / clipping)
+3) SimpleHierarchyImputer       : fills missing values using statistics from similar cars first
+4) CarFeatureEngineer           : creates additional signals (age, ratios, interactions, relative positioning)
+5) Feature selection            : keeps only helpful signals and drops redundant noise
 Important rule: transformers must NOT drop rows inside transform(),
 otherwise X and y get misaligned during cross-validation.
 """
@@ -1106,324 +1105,406 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
 
 
 ################################################################################
-# Missing Values (GroupImputer)
+# Missing Values (Imputer)
 ################################################################################
 
-class GroupImputer(BaseEstimator, TransformerMixin):
+class SimpleHierarchicalImputer(BaseEstimator, TransformerMixin):
     """
-    Hierarchical imputer for numeric + categorical features.
-
-    Idea:
-    ----
-    We have to  compute the median value for the train dataset and fill the missing values in train, validation and test set with the median from the train dataset.
-    For each row with a missing value, fill it using statistics from "similar" rows first, and only fall back to global statistics if needed.
-
-    Hierarchy for numeric columns (num_cols):
-        1) median per (group_cols[0], group_cols[1])    > we use brand, model
-        2) median per group_cols[0]                     > we use brand
-        3) global median across all rows
-
-    Hierarchy for categorical columns (cat_cols):
-        1) mode per (group_cols[0], group_cols[1])      > we use brand, model
-        2) mode per group_cols[0]                       > we use brand
-        3) global mode across all rows
-
-    Notes:
-    -----
-    - `group_cols` are used only to define groups; they themselves are not imputed.
-    - `num_cols` and `cat_cols` can be given explicitly (lists of column names). If None, they are inferred from the dtypes in `fit`.
+    Simple hierarchical imputer with specific rules for each column.
+    
+    Uses fit() to learn group statistics from training data and transform()
+    to apply them, preventing data leakage in cross-validation.
+    
+    Imputation Hierarchy Overview:
+    
+    brand (mode):
+        model -> (fuelType, transmission) -> fuelType -> global
+    
+    model (mode):
+        (brand, engineSize, fuelType, transmission) -> (brand, fuelType, transmission) ->
+        (brand, engineSize, transmission) -> (brand, engineSize, fuelType) -> brand -> global
+    
+    fuelType (mode):
+        (model, tax) -> model -> brand -> global
+    
+    transmission (mode):
+        model -> brand -> global
+    
+    engineSize (median):
+        (model, fuelType) -> model -> fuelType -> global
+    
+    mpg (median):
+        (model, engineSize) -> model -> engineSize -> global
+    
+    tax (median):
+        (model, engineSize) -> model -> global
+    
+    previousOwners (median):
+        year -> global
+    
+    mileage (median):
+        year -> global
+    
+    year (mode):
+        mileage_bins -> global
+    
+    hasDamage (mode):
+        global
     """
-
-    def __init__(self, group_cols=("brand", "model"), num_cols=None, cat_cols=None, fallback="__MISSING__", verbose=False, verbose_top_n=10):
-        self.group_cols = group_cols
-        self.num_cols = num_cols
-        self.cat_cols = cat_cols
-        self.fallback = fallback
-        self.verbose = verbose
-        self.verbose_top_n = verbose_top_n
-
-    # helpers
-    def _mode(self, s: pd.Series):
-        """
-        Deterministic mode helper.
-
-        - Compute the most frequent non-null value.
-        - If multiple values tie, Series.mode() returns them in order, we take .iloc[0].
-        - If there is no valid mode (all NaN), return fallback token.
-        """
-        m = s.mode(dropna=True)
-        if not m.empty:
-            return m.iloc[0]
-        return self.fallback
-
-    def _get_group_series(self, df: pd.DataFrame, col_name: str) -> pd.Series:
-        """
-        Get the FIRST physical column with the given label from df.
-
-        Reason
-        ------
-        - In some workflows, df.columns can contain duplicate labels
-          (e.g. "brand" appearing twice after some operations).
-        - df["brand"] would then raise "Grouper for 'brand' not 1-dimensional".
-        - By using np.where(df.columns == col_name)[0] we get *positions* and
-          explicitly pick the first one.
-
-        Raises
-        ------
-        ValueError if no column with that name exists.
-        """
-        matches = np.where(df.columns == col_name)[0]
-        if len(matches) == 0:
-            raise ValueError(f"GroupImputer: grouping column '{col_name}' not found in data.")
-        return df.iloc[:, matches[0]]
-
+    
+    def __init__(self):
+        pass
+    
+    @staticmethod
+    def _safe_mode(series):
+        """Get mode of series, return np.nan if empty."""
+        mode = series.mode(dropna=True)
+        return mode.iloc[0] if not mode.empty else np.nan
+    
+    @staticmethod
+    def _safe_median(series):
+        """Get median of series, return np.nan if empty."""
+        return series.median() if series.notna().any() else np.nan
+    
     def fit(self, X, y=None):
-        """
-        Learn the group-level and global statistics from the training data.
-
-        Steps
-        -----
-        1) Convert X to DataFrame and remember the original column order.
-        2) Resolve which columns are numeric/categorical to impute.
-        3) Build group keys (g0, g1) from group_cols (e.g. brand, model).
-        4) For numeric columns:
-            - compute global medians
-            - medians per g0 (e.g. per brand)
-            - medians per (g0, g1) (e.g. per brand+model)
-        5) For categorical columns:
-            - global modes
-            - modes per g0
-            - modes per (g0, g1)
-        """
-
+        """Learn imputation statistics from training data."""
         df = pd.DataFrame(X).copy()
-        self.feature_names_in_ = df.columns.to_list()
+        
+        # Store lookup tables
+        self.brand_by_model_ = {}
+        self.brand_by_fuelType_transmission_ = {}
+        self.brand_by_fuelType_ = {}
+        # Separate lookup tables for different combination lengths
+        self.model_by_brand_engineSize_fuelType_transmission_ = {}
+        self.model_by_brand_fuelType_transmission_ = {}
+        self.model_by_brand_engineSize_transmission_ = {}
+        self.model_by_brand_engineSize_ = {}
+        self.model_by_brand_ = {}
+        self.fuel_by_model_tax_ = {}
+        self.fuel_by_model_ = {}
+        self.fuel_by_brand_ = {}
+        self.transmission_by_model_ = {}
+        self.transmission_by_brand_ = {}
+        self.mpg_by_model_engineSize_ = {}
+        self.mpg_by_model_ = {}
+        self.mpg_by_engineSize_ = {}
+        self.tax_by_model_engineSize_ = {}
+        self.tax_by_model_ = {}
+        self.previousOwners_by_year_ = {}
+        self.engineSize_by_model_fuelType_ = {}
+        self.engineSize_by_model_ = {}
+        self.engineSize_by_fuelType_ = {}
+        self.mileage_by_year_ = {}
+        self.year_by_mileage_bin_ = {}
+        self.mileage_bins_ = None
+        
+        ### Learn group statistics (only from non-null values)
+        # Learn mode of model for brand
+        valid = df[["model", "brand"]].dropna()
+        if not valid.empty:
+            self.brand_by_model_ = valid.groupby("model")["brand"].agg(self._safe_mode).to_dict()
+        
+        # Learn mode of (fuelType, transmission) for brand (fallback)
+        valid = df[["fuelType", "transmission", "brand"]].dropna()
+        if not valid.empty:
+            self.brand_by_fuelType_transmission_ = valid.groupby(["fuelType", "transmission"])["brand"].agg(self._safe_mode).to_dict()
+        
+        # Learn mode of fuelType for brand (fallback)
+        valid = df[["fuelType", "brand"]].dropna()
+        if not valid.empty:
+            self.brand_by_fuelType_ = valid.groupby("fuelType")["brand"].agg(self._safe_mode).to_dict()
+        
 
-        # group_cols must contain at least one column name
-        if self.group_cols is None or len(self.group_cols) == 0:
-            raise ValueError("GroupImputer: at least one group column must be specified.")
+                    
+        # Learn mode of model using different combinations (stored in separate dicts)
+        # 1. (brand, engineSize, fuelType, transmission) - most specific
+        valid = df[["brand", "engineSize", "fuelType", "transmission", "model"]].dropna()
+        if not valid.empty:
+            self.model_by_brand_engineSize_fuelType_transmission_ = valid.groupby(["brand", "engineSize", "fuelType", "transmission"])["model"].agg(self._safe_mode).to_dict()
+        
+        # 2. (brand, fuelType, transmission) - when engineSize missing
+        valid = df[["brand", "fuelType", "transmission", "model"]].dropna()
+        if not valid.empty:
+            self.model_by_brand_fuelType_transmission_ = valid.groupby(["brand", "fuelType", "transmission"])["model"].agg(self._safe_mode).to_dict()
+        
+        # 3. (brand, engineSize, transmission) - when fuelType missing
+        valid = df[["brand", "engineSize", "transmission", "model"]].dropna()
+        if not valid.empty:
+            self.model_by_brand_engineSize_transmission_ = valid.groupby(["brand", "engineSize", "transmission"])["model"].agg(self._safe_mode).to_dict()
+        
+        # 4. (brand, engineSize, fuelType) - when transmission missing
+        valid = df[["brand", "engineSize", "fuelType", "model"]].dropna()
+        if not valid.empty:
+            self.model_by_brand_engineSize_ = valid.groupby(["brand", "engineSize", "fuelType"])["model"].agg(self._safe_mode).to_dict()
+        
+        # 5. (brand) - fallback to brand only
+        valid = df[["brand", "model"]].dropna()
+        if not valid.empty:
+            self.model_by_brand_ = valid.groupby("brand")["model"].agg(self._safe_mode).to_dict()
 
-        self.group_cols_ = list(self.group_cols)
-
-        # Determine numeric columns to impute (internal num_cols_)
-        if self.num_cols is None:
-            # If not specified: all numeric columns except the group columns
-            num_cols_all = df.select_dtypes(include="number").columns.tolist()
-            self.num_cols_ = [c for c in num_cols_all if c not in self.group_cols_]
-        else:
-            # If specified: keep only those that exist in df
-            self.num_cols_ = [c for c in self.num_cols if c in df.columns]
-
-        # Determine categorical columns to impute (internal cat_cols_)
-        if self.cat_cols is None:
-            # If not specified: all non-group, non-numeric columns
-            self.cat_cols_ = [c for c in df.columns if c not in self.group_cols_ + self.num_cols_]
-        else:
-            # If specified: keep only those that exist in df
-            self.cat_cols_ = [c for c in self.cat_cols if c in df.columns]
-
-        # Build group key series based on the current df
-        # g0 = first grouping column (e.g. brand)
-        g0 = self._get_group_series(df, self.group_cols_[0])
-
-        # g1 = second grouping column (e.g. model), optional
-        g1 = None
-        if len(self.group_cols_) > 1:
-            g1 = self._get_group_series(df, self.group_cols_[1])
-
-        # numeric statistics
-        if self.num_cols_:
-            # Extract the numeric columns to impute
-            num_df = df[self.num_cols_].copy()
-
-            # 3) Global median per numeric column (fallback for any group with no stats)
-            self.num_global_ = num_df.median(numeric_only=True)
-
-            # 2) Median per first-level group (g0, e.g. brand)
-            num_first = num_df.copy()
-            num_first["_g0"] = g0.values  # temporary group key column
-            self.num_first_ = num_first.groupby("_g0", dropna=True).median(numeric_only=True)
-
-            # 1) Median per pair (g0, g1), e.g. (brand, model)
-            if g1 is not None:
-                num_pair = num_df.copy()
-                num_pair["_g0"] = g0.values
-                num_pair["_g1"] = g1.values
-                self.num_pair_ = num_pair.groupby(["_g0", "_g1"], dropna=True).median(numeric_only=True)
-            else:
-                self.num_pair_ = pd.DataFrame()
-        else:
-            self.num_global_ = pd.Series(dtype="float64")
-            self.num_first_ = pd.DataFrame()
-            self.num_pair_ = pd.DataFrame()
-
-        # categorical statistics
-        if self.cat_cols_:
-            cat_df = df[self.cat_cols_].copy()
-
-            # 3) Global mode per categorical column
-            self.cat_global_ = pd.Series({c: self._mode(cat_df[c]) for c in self.cat_cols_}, dtype="object")
-
-            # 2) Mode per first-level group (g0)
-            cat_first = cat_df.copy()
-            cat_first["_g0"] = g0.values
-            self.cat_first_ = cat_first.groupby("_g0", dropna=True).agg(lambda s: self._mode(s))
-
-            # 1) Mode per pair (g0, g1)
-            if g1 is not None:
-                cat_pair = cat_df.copy()
-                cat_pair["_g0"] = g0.values
-                cat_pair["_g1"] = g1.values
-                self.cat_pair_ = cat_pair.groupby(["_g0", "_g1"], dropna=True).agg(lambda s: self._mode(s))
-            else:
-                self.cat_pair_ = pd.DataFrame()
-        else:
-            self.cat_global_ = pd.Series(dtype="object")
-            self.cat_first_ = pd.DataFrame()
-            self.cat_pair_ = pd.DataFrame()
-
+        # Learn mode of (model, tax) for fuelType
+        valid = df[["model", "tax", "fuelType"]].dropna()
+        if not valid.empty:
+            self.fuel_by_model_tax_ = valid.groupby(["model", "tax"])["fuelType"].agg(self._safe_mode).to_dict()
+        
+        # Learn mode of model for fuelType (fallback)
+        valid = df[["model", "fuelType"]].dropna()
+        if not valid.empty:
+            self.fuel_by_model_ = valid.groupby("model")["fuelType"].agg(self._safe_mode).to_dict()
+        
+        # Learn mode of brand for fuelType (fallback)
+        valid = df[["brand", "fuelType"]].dropna()
+        if not valid.empty:
+            self.fuel_by_brand_ = valid.groupby("brand")["fuelType"].agg(self._safe_mode).to_dict()
+        
+        # Learn mode of model for transmission
+        valid = df[["model", "transmission"]].dropna()
+        if not valid.empty:
+            self.transmission_by_model_ = valid.groupby("model")["transmission"].agg(self._safe_mode).to_dict()
+        
+        # Learn mode of brand for transmission (fallback)
+        valid = df[["brand", "transmission"]].dropna()
+        if not valid.empty:
+            self.transmission_by_brand_ = valid.groupby("brand")["transmission"].agg(self._safe_mode).to_dict()
+        
+        # Learn median of (model, engineSize) for mpg
+        valid = df[["model", "engineSize", "mpg"]].dropna()
+        if not valid.empty:
+            self.mpg_by_model_engineSize_ = valid.groupby(["model", "engineSize"])["mpg"].agg(self._safe_median).to_dict()
+        
+        # Learn median of model for mpg (fallback)
+        valid = df[["model", "mpg"]].dropna()
+        if not valid.empty:
+            self.mpg_by_model_ = valid.groupby("model")["mpg"].agg(self._safe_median).to_dict()
+        
+        # Learn median of engineSize for mpg (fallback)
+        valid = df[["engineSize", "mpg"]].dropna()
+        if not valid.empty:
+            self.mpg_by_engineSize_ = valid.groupby("engineSize")["mpg"].agg(self._safe_median).to_dict()
+        
+        # Learn median of (model, engineSize) for tax
+        valid = df[["model", "engineSize", "tax"]].dropna()
+        if not valid.empty:
+            self.tax_by_model_engineSize_ = valid.groupby(["model", "engineSize"])["tax"].agg(self._safe_median).to_dict()
+        
+        # Learn median of model for tax (fallback)
+        valid = df[["model", "tax"]].dropna()
+        if not valid.empty:
+            self.tax_by_model_ = valid.groupby("model")["tax"].agg(self._safe_median).to_dict()
+        
+        # Learn median of year for previousOwners
+        valid = df[["year", "previousOwners"]].dropna()
+        if not valid.empty:
+            self.previousOwners_by_year_ = valid.groupby("year")["previousOwners"].agg(self._safe_median).to_dict()
+        
+        # Learn median of (model, fuelType) for engineSize
+        valid = df[["model", "fuelType", "engineSize"]].dropna()
+        if not valid.empty:
+            self.engineSize_by_model_fuelType_ = valid.groupby(["model", "fuelType"])["engineSize"].agg(self._safe_median).to_dict()
+        
+        # Learn median of model for engineSize (fallback)
+        valid = df[["model", "engineSize"]].dropna()
+        if not valid.empty:
+            self.engineSize_by_model_ = valid.groupby("model")["engineSize"].agg(self._safe_median).to_dict()
+        
+        # Learn median of fuelType for engineSize (fallback)
+        valid = df[["fuelType", "engineSize"]].dropna()
+        if not valid.empty:
+            self.engineSize_by_fuelType_ = valid.groupby("fuelType")["engineSize"].agg(self._safe_median).to_dict()
+        
+        # Learn median of year for mileage
+        valid = df[["year", "mileage"]].dropna()
+        if not valid.empty:
+            self.mileage_by_year_ = valid.groupby("year")["mileage"].agg(self._safe_median).to_dict()
+        
+        # Learn median year for mileage bins (since year and mileage are highly correlated)
+        valid = df[["mileage", "year"]].dropna()
+        if not valid.empty and len(valid) >= 20:
+            # Create mileage bins using quantiles
+            self.mileage_bins_ = pd.qcut(valid["mileage"], q=10, duplicates='drop', retbins=True)[1]
+            # Assign each mileage to a bin
+            valid["mileage_bin"] = pd.cut(valid["mileage"], bins=self.mileage_bins_, include_lowest=True)
+            # Learn median year for each bin
+            self.year_by_mileage_bin_ = valid.groupby("mileage_bin", observed=False)["year"].agg(self._safe_median).to_dict()
+        
+        # Learn global fallbacks
+        self.global_brand_ = self._safe_mode(df["brand"])
+        self.global_model_ = self._safe_mode(df["model"])
+        self.global_fuel_ = self._safe_mode(df["fuelType"])
+        self.global_transmission_ = self._safe_mode(df["transmission"])
+        self.global_mpg_ = self._safe_median(df["mpg"])
+        self.global_tax_ = self._safe_median(df["tax"])
+        self.global_previousOwners_ = self._safe_median(df["previousOwners"])
+        self.global_engineSize_ = self._safe_median(df["engineSize"])
+        self.global_mileage_ = self._safe_median(df["mileage"])
+        self.global_year_ = self._safe_median(df["year"])
+        self.global_hasDamage_ = self._safe_mode(df["hasDamage"])
+        
         return self
-
+    
     def transform(self, X):
-        """
-        Apply hierarchical imputation to new data.
-            1) Convert input to DataFrame and align columns to what fit() saw.
-            2) Rebuild group keys g0, g1 from the current data.
-            3) For each numeric column with missing values:
-                - try pair-level median (g0, g1)
-                - then brand-level median (g0)
-                - then global median
-            4) Same for categorical columns with modes.
-        """
+        """Apply learned imputation rules."""
         df = pd.DataFrame(X).copy()
-        df = df.reindex(columns=self.feature_names_in_)
-
-        g0 = self._get_group_series(df, self.group_cols_[0])
-        g1 = None
-        if len(self.group_cols_) > 1:
-            g1 = self._get_group_series(df, self.group_cols_[1])
-
-        # NEW: audit counters
-        report = {"num_pair": 0, "num_brand": 0, "num_global": 0, "cat_pair": 0, "cat_brand": 0, "cat_global": 0}
-        per_col = Counter()
-
-        # numeric imputation
-        if hasattr(self, "num_cols_") and self.num_cols_:
-            df[self.num_cols_] = df[self.num_cols_].astype("float64")
-            to_impute_num = [c for c in self.num_cols_ if df[c].isna().any()]
-
-            if to_impute_num:
-                # 1) pair-level imputation: per (g0, g1)
-                if g1 is not None and not self.num_pair_.empty:
-                    key_df = pd.DataFrame({"_g0": g0.values, "_g1": g1.values})
-                    med_df = self.num_pair_.reset_index()
-                    joined = key_df.merge(med_df, on=["_g0", "_g1"], how="left")
-
-                    for col in to_impute_num:
-                        if col not in self.num_pair_.columns:
-                            continue
-                        mask = df[col].isna() & joined[col].notna()
-                        n = int(mask.sum())
-                        report["num_pair"] += n
-                        per_col[col] += n
-                        df.loc[mask, col] = joined.loc[mask, col]
-
-                # 2) first-level imputation: per g0 only
-                if not self.num_first_.empty:
-                    key1 = pd.DataFrame({"_g0": g0.values})
-                    med1 = self.num_first_.reset_index()
-                    joined1 = key1.merge(med1, on="_g0", how="left")
-
-                    for col in to_impute_num:
-                        if col not in self.num_first_.columns:
-                            continue
-                        mask = df[col].isna() & joined1[col].notna()
-                        n = int(mask.sum())
-                        report["num_brand"] += n
-                        per_col[col] += n
-                        df.loc[mask, col] = joined1.loc[mask, col]
-
-                # 3) global median fallback
-                for col in to_impute_num:
-                    if col in self.num_global_:
-                        mask = df[col].isna()
-                        n = int(mask.sum())
-                        report["num_global"] += n
-                        per_col[col] += n
-                        df[col] = df[col].fillna(self.num_global_[col])
-
-        # categorical imputation
-        if hasattr(self, "cat_cols_") and self.cat_cols_:
-            to_impute_cat = [c for c in self.cat_cols_ if df[c].isna().any()]
-
-            if to_impute_cat:
-                # 1) pair-level imputation: per (g0, g1)
-                if g1 is not None and not self.cat_pair_.empty:
-                    key_df = pd.DataFrame({"_g0": g0.values, "_g1": g1.values})
-                    mode_df = self.cat_pair_.reset_index()
-                    joined = key_df.merge(mode_df, on=["_g0", "_g1"], how="left")
-
-                    for col in to_impute_cat:
-                        if col not in self.cat_pair_.columns:
-                            continue
-                        mask = df[col].isna() & joined[col].notna()
-                        n = int(mask.sum())
-                        report["cat_pair"] += n
-                        per_col[col] += n
-                        df.loc[mask, col] = joined.loc[mask, col]
-
-                # 2) first-level imputation: per g0 only
-                if not self.cat_first_.empty:
-                    key1 = pd.DataFrame({"_g0": g0.values})
-                    mode1 = self.cat_first_.reset_index()
-                    joined1 = key1.merge(mode1, on="_g0", how="left")
-
-                    for col in to_impute_cat:
-                        if col not in self.cat_first_.columns:
-                            continue
-                        mask = df[col].isna() & joined1[col].notna()
-                        n = int(mask.sum())
-                        report["cat_brand"] += n
-                        per_col[col] += n
-                        df.loc[mask, col] = joined1.loc[mask, col]
-
-                # 3) global mode fallback (or fallback token)
-                for col in to_impute_cat:
-                    mask = df[col].isna()
-                    n = int(mask.sum())
-                    report["cat_global"] += n
-                    per_col[col] += n
-                    df[col] = df[col].fillna(self.cat_global_.get(col, self.fallback))
-
-        # store report for later inspection
-        self.report_ = report
-        self.report_by_column_ = (
-            pd.DataFrame(per_col.items(), columns=["column", "values_filled"])
-            .sort_values("values_filled", ascending=False)
-            .reset_index(drop=True)
-        )
-
-        if self.verbose:
-            _print_section("GroupImputer report")
-            print("Imputed Missing Values ( always try 'most similar cars' first):\n")
-            print(f"- Numeric (Median):   (brand+model)={report['num_pair']}, brand={report['num_brand']}, global={report['num_global']}")
-            print(f"- Categorical (Mode): (brand+model)={report['cat_pair']}, brand={report['cat_brand']}, global={report['cat_global']}")
-            print("\nTop columns affected:")
-            _maybe_display(self.report_by_column_, max_rows=self.verbose_top_n)
-
+        
+        # Impute brand with hierarchical lookup: model → (fuelType, transmission) → fuelType → global
+        mask = df["brand"].isna()
+        if mask.any():
+            df.loc[mask, "brand"] = df.loc[mask, "model"].map(self.brand_by_model_)
+            mask = df["brand"].isna()
+            
+            # Fallback to (fuelType, transmission)
+            if mask.any():
+                keys = df.loc[mask, ["fuelType", "transmission"]].apply(tuple, axis=1)
+                df.loc[mask, "brand"] = df.loc[mask, "brand"].fillna(keys.map(self.brand_by_fuelType_transmission_))
+                mask = df["brand"].isna()
+            
+            # Fallback to fuelType only
+            if mask.any():
+                df.loc[mask, "brand"] = df.loc[mask, "fuelType"].map(self.brand_by_fuelType_)
+        
+        df["brand"] = df["brand"].fillna(self.global_brand_)
+        
+        # Impute model with hierarchical combination lookup, otherwise global mode
+        mask = df["model"].isna()
+        if mask.any():
+            # Try all combinations in order of specificity (matching fit() logic)
+            # 1. Try (brand, engineSize, fuelType, transmission) - 4-tuple
+            keys = df.loc[mask, ["brand", "engineSize", "fuelType", "transmission"]].apply(tuple, axis=1)
+            df.loc[mask, "model"] = df.loc[mask, "model"].fillna(keys.map(self.model_by_brand_engineSize_fuelType_transmission_))
+            mask = df["model"].isna()
+            
+            # 2. Try (brand, fuelType, transmission) - 3-tuple
+            if mask.any():
+                keys = df.loc[mask, ["brand", "fuelType", "transmission"]].apply(tuple, axis=1)
+                df.loc[mask, "model"] = df.loc[mask, "model"].fillna(keys.map(self.model_by_brand_fuelType_transmission_))
+                mask = df["model"].isna()
+            
+            # 3. Try (brand, engineSize, transmission) - 3-tuple
+            if mask.any():
+                keys = df.loc[mask, ["brand", "engineSize", "transmission"]].apply(tuple, axis=1)
+                df.loc[mask, "model"] = df.loc[mask, "model"].fillna(keys.map(self.model_by_brand_engineSize_transmission_))
+                mask = df["model"].isna()
+            
+            # 4. Try (brand, engineSize, fuelType) - 3-tuple
+            if mask.any():
+                keys = df.loc[mask, ["brand", "engineSize", "fuelType"]].apply(tuple, axis=1)
+                df.loc[mask, "model"] = df.loc[mask, "model"].fillna(keys.map(self.model_by_brand_engineSize_))
+                mask = df["model"].isna()
+            
+            # 5. Try (brand) - single value, not tuple
+            if mask.any():
+                df.loc[mask, "model"] = df.loc[mask, "brand"].map(self.model_by_brand_)
+        
+        # Final fallback to global mode
+        df["model"] = df["model"].fillna(self.global_model_)
+        
+        # Impute fuelType with hierarchical lookup: (model, tax) → model → brand → global
+        mask = df["fuelType"].isna()
+        if mask.any():
+            # Try (model, tax) combination first
+            keys = df.loc[mask, ["model", "tax"]].apply(tuple, axis=1)
+            df.loc[mask, "fuelType"] = df.loc[mask, "fuelType"].fillna(keys.map(self.fuel_by_model_tax_))
+            mask = df["fuelType"].isna()
+            
+            # Fallback to model only
+            if mask.any():
+                df.loc[mask, "fuelType"] = df.loc[mask, "model"].map(self.fuel_by_model_)
+                mask = df["fuelType"].isna()
+            
+            # Fallback to brand only
+            if mask.any():
+                df.loc[mask, "fuelType"] = df.loc[mask, "brand"].map(self.fuel_by_brand_)
+        
+        df["fuelType"] = df["fuelType"].fillna(self.global_fuel_)
+        
+        # Impute transmission with mode of model, then brand, otherwise global mode
+        mask = df["transmission"].isna()
+        if mask.any():
+            df.loc[mask, "transmission"] = df.loc[mask, "model"].map(self.transmission_by_model_)
+            mask = df["transmission"].isna()
+            
+            # Fallback to brand
+            if mask.any():
+                df.loc[mask, "transmission"] = df.loc[mask, "brand"].map(self.transmission_by_brand_)
+        
+        df["transmission"] = df["transmission"].fillna(self.global_transmission_)
+        
+        # Impute mpg with hierarchical lookup: (model, engineSize) → model → engineSize → global
+        mask = df["mpg"].isna()
+        if mask.any():
+            # Try (model, engineSize) combination first
+            keys = df.loc[mask, ["model", "engineSize"]].apply(tuple, axis=1)
+            df.loc[mask, "mpg"] = df.loc[mask, "mpg"].fillna(keys.map(self.mpg_by_model_engineSize_))
+            mask = df["mpg"].isna()
+            
+            # Fallback to model only
+            if mask.any():
+                df.loc[mask, "mpg"] = df.loc[mask, "model"].map(self.mpg_by_model_)
+                mask = df["mpg"].isna()
+            
+            # Fallback to engineSize only
+            if mask.any():
+                df.loc[mask, "mpg"] = df.loc[mask, "engineSize"].map(self.mpg_by_engineSize_)
+        
+        df["mpg"] = df["mpg"].fillna(self.global_mpg_)
+        
+        # Impute tax with hierarchical lookup: (model, engineSize) → model → global
+        mask = df["tax"].isna()
+        if mask.any():
+            # Try (model, engineSize) combination first
+            keys = df.loc[mask, ["model", "engineSize"]].apply(tuple, axis=1)
+            df.loc[mask, "tax"] = df.loc[mask, "tax"].fillna(keys.map(self.tax_by_model_engineSize_))
+            mask = df["tax"].isna()
+            
+            # Fallback to model
+            if mask.any():
+                df.loc[mask, "tax"] = df.loc[mask, "model"].map(self.tax_by_model_)
+        
+        df["tax"] = df["tax"].fillna(self.global_tax_)
+        
+        # Impute previousOwners with median of year, otherwise global median
+        mask = df["previousOwners"].isna()
+        if mask.any():
+            df.loc[mask, "previousOwners"] = df.loc[mask, "year"].map(self.previousOwners_by_year_)
+        df["previousOwners"] = df["previousOwners"].fillna(self.global_previousOwners_)
+        
+        # Impute engineSize with hierarchical lookup: (model, fuelType) -> model → fuelType → global
+        mask = df["engineSize"].isna()
+        if mask.any():
+            # Try (model, fuelType) combination first
+            keys = df.loc[mask, ["model", "fuelType"]].apply(tuple, axis=1)
+            df.loc[mask, "engineSize"] = df.loc[mask, "engineSize"].fillna(keys.map(self.engineSize_by_model_fuelType_))
+            mask = df["engineSize"].isna()
+            
+            # Fallback to model only
+            if mask.any():
+                df.loc[mask, "engineSize"] = df.loc[mask, "model"].map(self.engineSize_by_model_)
+                mask = df["engineSize"].isna()
+            
+            # Fallback to fuelType only
+            if mask.any():
+                df.loc[mask, "engineSize"] = df.loc[mask, "fuelType"].map(self.engineSize_by_fuelType_)
+        
+        df["engineSize"] = df["engineSize"].fillna(self.global_engineSize_)
+        
+        # Impute mileage with median of year, otherwise global median
+        mask = df["mileage"].isna()
+        if mask.any():
+            df.loc[mask, "mileage"] = df.loc[mask, "year"].map(self.mileage_by_year_)
+        df["mileage"] = df["mileage"].fillna(self.global_mileage_)
+        
+        # Impute year using mileage bins (since they're highly correlated), otherwise global median
+        mask = df["year"].isna()
+        if mask.any() and self.mileage_bins_ is not None:
+            # Assign each mileage to the learned bins
+            mileage_bins = pd.cut(df.loc[mask, "mileage"], bins=self.mileage_bins_, include_lowest=True)
+            df.loc[mask, "year"] = mileage_bins.map(self.year_by_mileage_bin_)
+        df["year"] = df["year"].fillna(self.global_year_)
+        
+        # Impute hasDamage with global mode
+        df["hasDamage"] = df["hasDamage"].fillna(self.global_hasDamage_)
+        
         return df
-
-    def get_feature_names_out(self, input_features=None):
-        """
-        Make the transformer compatible with sklearn's get feature-name.
-
-        - If called without arguments, return the original feature names seen in fit().
-        - This is mostly useful when GroupImputer is at the top of a Pipeline and
-          later steps want to introspect feature names.
-        """
-        if input_features is None:
-            input_features = getattr(self, "feature_names_in_", None)
-        return np.asarray(input_features, dtype=object)
 
 
 ################################################################################
