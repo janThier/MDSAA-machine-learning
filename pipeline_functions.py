@@ -401,11 +401,11 @@ class DebugTransformer(BaseEstimator, TransformerMixin):
                             X,
                             title="Car Data Profiling Report",
                             correlations={
-                                "pearson": {"calculate": True},
+                                "pearson": {"calculate": False},
                                 "spearman": {"calculate": True},
-                                "kendall": {"calculate": True},
-                                "phi_k": {"calculate": True},
-                                "cramers": {"calculate": True},
+                                "kendall": {"calculate": False},
+                                "phi_k": {"calculate": False},
+                                "cramers": {"calculate": False},
                             },
                         )
                         profile.to_notebook_iframe()
