@@ -308,9 +308,11 @@ with st.sidebar:
             if brand_name == "Other":
                 continue
             models = BRAND_MODELS[brand_name]
-            with st.expander(f"{brand_name} ({len(models)})"):
+            # Filter out "Other" from models list
+            models_filtered = [m for m in models if m.lower() != "other"]
+            with st.expander(f"{brand_name} ({len(models_filtered)})"):
                 cols = st.columns(4)
-                for i, model_item in enumerate(sorted(models)):
+                for i, model_item in enumerate(sorted(models_filtered)):
                     cols[i % 4].write(f"• {model_item.title()}")
     
     st.divider()
