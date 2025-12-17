@@ -5,3 +5,4 @@ ydata-profiling
 setuptools
 shap
 category_encoders
+IPython
