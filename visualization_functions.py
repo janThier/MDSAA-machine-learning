@@ -42,17 +42,6 @@ def plot_selector_agreement(majority_selector, feature_names):
 ################################################################################
 ######################## Model comparison #######################
 ################################################################################
-def plot_val_mae_comparison(df_scores):
-    sns.set_style("whitegrid")
-
-    # Plot validation MAE as primary metric
-    plt.figure(figsize=(8,5))
-    sns.barplot(x=df_scores.index, y='val_mae', data=df_scores)
-    plt.title("Validation MAE Comparison (lower is better)")
-    plt.ylabel("MAE")
-    plt.xlabel("Model")
-    plt.show()
-
 # Subplot with train vs. val comparison
 def plot_train_val_comparison(df_scores):
     # Reset index for plotting

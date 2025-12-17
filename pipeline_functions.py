@@ -865,7 +865,7 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
                     )
 
                     print("\nFuzzy matches performed (raw token -> chosen match):")
-                    _maybe_display(head_rows, max_rows=self.verbose_top_n)
+                    _maybe_display(summary, max_rows=self.verbose_top_n)
 
                     if self.verbose_plot:
                         for col in summary["column"].unique():
@@ -2257,8 +2257,9 @@ def model_hyperparameter_tuning(
     return model_random.best_estimator_, model_random, model_scores
 
 
-####### Output compatible wrapper #######
-
+################################################################################
+# Output compatible wrapper
+################################################################################
 class SetOutputCompatibleWrapper(BaseEstimator, TransformerMixin):
     """
     Wrapper that adds set_output compatibility to transformers that don't support it.
@@ -2421,3 +2422,9 @@ class SetOutputCompatibleWrapper(BaseEstimator, TransformerMixin):
         if "transformer" in params:
             self.transformer = params["transformer"]
         return self
+
+
+################################################################################
+# TODO Open End Section functions
+################################################################################
+
