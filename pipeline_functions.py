@@ -2423,8 +2423,3 @@ class SetOutputCompatibleWrapper(BaseEstimator, TransformerMixin):
             self.transformer = params["transformer"]
         return self
 
-
-################################################################################
-# TODO Open End Section functions
-################################################################################
-
