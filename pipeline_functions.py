@@ -419,7 +419,6 @@ class CarDataCleaner(BaseEstimator, TransformerMixin):
     CarDataCleaner
 
     What it does:
-    ---------------------------
 
     1) Numeric sanity checks:
        - coercion to numeric types
