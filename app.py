@@ -37,7 +37,7 @@ st.set_page_config(
 @st.cache_resource
 def load_model():
     """Load the trained model pipeline from disk."""
-    model = 'rf_tuned_pipe'
+    model = 'rf_tuned_pipe' # We use the rf model because et is bigger than 1GB and can therefore not be used (RF performance is roughly the same)
     try:
         loaded_pipe = joblib.load(f"{model}.pkl") # The main notebook has to be run to create this file. It is not included in the zip due to its file size.
         

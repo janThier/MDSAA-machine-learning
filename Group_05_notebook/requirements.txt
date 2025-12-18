@@ -1,3 +1,4 @@
+# This requirements file lists the requirements necessary to start the app.py Streamlit application.
 streamlit
 pandas
 scikit-learn
