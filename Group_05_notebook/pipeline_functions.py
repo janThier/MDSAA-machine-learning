@@ -3,12 +3,12 @@ pipeline_functions.py — Cars4You
 
 Reading guide:
 -----------------------------
-This file contains small building blocks ("transformers") that are chained into a
-single sklearn Pipeline. Each transformer does one job:
+This file contains helper functions (e.g. for tuning) and small building blocks ("transformers") 
+that are chained into a single sklearn Pipeline. Each transformer does one job:
 
 1) CarDataCleaner               : fixes obvious issues (typos, impossible numeric ranges) without dropping rows
 2) OutlierHandler               : reduces the impact of extreme numeric values (winsorization / clipping)
-3) SimpleHierarchyImputer       : fills missing values using statistics from similar cars first
+3) IndividualHierarchyImputer       : fills missing values using statistics from similar cars first
 4) CarFeatureEngineer           : creates additional signals (age, ratios, interactions, relative positioning)
 5) Feature selection            : keeps only helpful signals and drops redundant noise
 
@@ -26,6 +26,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import SelectorMixin, mutual_info_regression
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted, check_X_y
+import time
 
 from scipy.stats import spearmanr
 
@@ -54,7 +55,7 @@ def _maybe_display(df_or_obj, max_rows=10):
 
 
 ################################################################################
-# Canonical maps (shared between fit() and transform())
+# Canonical maps for Cleaning (shared between fit() and transform())
 ################################################################################
  
 BRAND_MAP = {
@@ -348,67 +349,6 @@ for brand, models in {
 }.items():
     for m in models:
         MODEL_TO_BRAND[m] = brand
-
-
-################################################################################
-# Debug Transformer
-################################################################################
-
-class DebugTransformer(BaseEstimator, TransformerMixin):
-    """
-    Prints shape/type and optionally shows a small preview of the data flowing through the pipeline
-    -> make the pipeline "transparent" during development
-
-    Safe defaults:
-    - show_data=False
-    - y_data_profiling=False
-    """
-
-    def __init__(self, name="Debug", show_data=False, y_data_profiling=False, n_rows=5):
-        self.name = name
-        self.show_data = show_data
-        self.y_data_profiling = y_data_profiling
-        self.n_rows = n_rows
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        print(f"\n--- {self.name} ---")
-        print(f"Shape: {X.shape}")
-        print(f"Type: {type(X)}")
-
-        if self.show_data:
-            if display is None:
-                print("display() not available in this environment.")
-            elif isinstance(X, pd.DataFrame):
-                print(f"\nFirst {self.n_rows} rows:")
-                display(X.head(self.n_rows))
-                display(X.describe(include="all").T)
-                display(X.info())
-                if self.y_data_profiling:
-                    if ProfileReport is None:
-                        print("\nProfileReport not available (ydata_profiling not installed).")
-                    else:
-                        print("\nGenerating data profiling report...")
-                        profile = ProfileReport(
-                            X,
-                            title="Car Data Profiling Report",
-                            correlations={
-                                "pearson": {"calculate": False},
-                                "spearman": {"calculate": True},
-                                "kendall": {"calculate": False},
-                                "phi_k": {"calculate": False},
-                                "cramers": {"calculate": False},
-                            },
-                        )
-                        profile.to_notebook_iframe()
-            else:  # Edge-case for numpy array after column transformer
-                print(f"\nFirst {self.n_rows} rows:")
-                display(X[: self.n_rows])
-
-        return X
-
 
 ################################################################################
 # Data Cleaning (CarDataCleaner)
@@ -2039,65 +1979,169 @@ def create_model_pipe(prepro_pipe, model):
     ])
     return model_pipe
 
-def get_cv_results(models, X_train, y_train, cv, rs):
 
+def run_quick_randomsearch(models_dict, X_train, y_train, cv, n_iter, random_state, n_jobs):
+    """
+    Run RandomizedSearchCV on multiple models using the model_hyperparameter_tuning function.
+    
+    Parameters:
+    models_dict : dict
+        Dictionary with model names as keys and (pipeline, param_grid) tuples as values
+    X_train, y_train : arrays
+        Training data
+    cv : int
+        Number of cross-validation folds
+    n_iter : int
+        Number of random iterations per model
+    random_state : int
+        Random state for reproducibility
+    n_jobs : int
+        Number of parallel jobs
+        
+    Returns:
+    --------
+    results_df : DataFrame
+        Sorted results with best scores and parameters
+    best_estimators : dict
+        Dictionary of best fitted estimators for each model
+    final_table : DataFrame
+        Formatted table
+    """
+    
     results = []
-
-    for name, model in {**models}.items():
-        print(f"Fitting {name} with cross-validation...")
+    best_estimators = {}
+    
+    for name, (pipeline, param_dist) in models_dict.items():
+        print(f"Running RandomizedSearchCV for: {name}")
         
-        # Use same cross-validation setup for all models and same split as later in hyperparameter tuning
-        cv_results = cross_validate(
-            model, 
-            X_train, 
-            y_train,
-            cv=cv,
-            scoring={
-                'neg_mae': 'neg_mean_absolute_error',
-                'neg_mse': 'neg_mean_squared_error',
-                'r2': 'r2'
-            },
-            return_train_score=True,
-            n_jobs=-1,
-            verbose=0,
-        )
+        start_time = time.time()
         
-        # Calculate mean metrics across folds
-        mae = -cv_results['test_neg_mae'].mean().round(4)
-        std_mae = cv_results['test_neg_mae'].std().round(4)
-        rmse = np.sqrt(-cv_results['test_neg_mse'].mean()).round(4)
-        r2 = cv_results['test_r2'].mean().round(4)
-        train_mae = -cv_results['train_neg_mae'].mean().round(4)
-        train_std_mae = cv_results['train_neg_mae'].std().round(4)
-        train_rmse = np.sqrt(-cv_results['train_neg_mse'].mean()).round(4)
-        train_r2 = cv_results['train_r2'].mean().round(4)
+        # Skip randomsearch if no parameters to tune (e.g. Median and Linear Regression)
+        if not param_dist:
+            print(f"No hyperparameters to tune: fit with default parameters...")
+            
+            # Use cross_validate to get multiple metrics
+            cv_results = cross_validate(
+                pipeline, X_train, y_train, 
+                cv=cv,
+                scoring={
+                    'mae': 'neg_mean_absolute_error',
+                    'rmse': 'neg_root_mean_squared_error',
+                    'r2': 'r2'
+                },
+                n_jobs=n_jobs,
+                return_train_score=True
+            )
+            
+            # Get the metrics
+            train_mae = -cv_results['train_mae'].mean()
+            train_rmse = -cv_results['train_rmse'].mean()
+            train_r2 = cv_results['train_r2'].mean()
+            val_mae = -cv_results['test_mae'].mean()
+            val_rmse = -cv_results['test_rmse'].mean()
+            val_r2 = cv_results['test_r2'].mean()
+            
+            best_params = "No hyperparameters"
+            best_estimators[name] = pipeline
+            
+            scores_dict = {
+                'train_mae': train_mae,
+                'train_rmse': train_rmse,
+                'train_r2': train_r2,
+                'val_mae': val_mae,
+                'val_rmse': val_rmse,
+                'val_r2': val_r2
+            }
+            
+        else:
+            print(f"Running hyperparameter tuning with {n_iter} iterations...")
+            
+            tuned_pipe, random_search_object, scores_dict = model_hyperparameter_tuning(
+                pipeline=pipeline,
+                X_train=X_train,
+                y_train=y_train,
+                param_dist=param_dist,
+                n_iter=n_iter,
+                cv=cv,
+                n_jobs=-1,
+                random_state=random_state,
+                verbose=1
+            )
+            
+            best_params = random_search_object.best_params_
+            best_estimators[name] = tuned_pipe
+        
+        duration = time.time() - start_time
         
         results.append({
-            "model": name,
-            "preprocessing": "original" if "orig" in name else "optimized",
-            "val_MAE": mae,
-            "std_MAE": std_mae,
-            "val_RMSE": rmse,
-            "val_R2": r2,
-            "train_MAE": train_mae,
-            "train_std_MAE": train_std_mae,
-            "train_RMSE": train_rmse,
-            "train_R2": train_r2
-
+            'Model': name,
+            'train_mae': scores_dict['train_mae'],
+            'train_rmse': scores_dict['train_rmse'],
+            'train_r2': scores_dict['train_r2'],
+            'val_mae': scores_dict['val_mae'],
+            'val_rmse': scores_dict['val_rmse'],
+            'val_r2': scores_dict['val_r2'],
+            'Best_Params': str(best_params),
+            'Duration_mins': duration / 60
         })
-        print(f"{name}: CV Performance on val:")
-        print(f"val_MAE:  {mae:,.4f}")
-        print(f"val_RMSE: {rmse:,.4f}")
-        print(f"val_R2:   {r2:,.4f}")
-        print(f"Completed {name}")
-
-    results_df = (
-        pd.DataFrame(results)
-        .sort_values(["preprocessing", "val_MAE"])
-        .reset_index(drop=True)
-    )
+        
+        print(f"Duration: {duration/60:.2f} minutes\n")
+        print("-"*70)
     
-    return results_df
+    # Create results DataFrame
+    results_df = pd.DataFrame(results)
+    results_df = results_df.sort_values('val_mae', ascending=True).reset_index(drop=True)
+    final_table = create_final_results_table(results_df)
+    
+    return results_df, best_estimators, final_table
+
+
+def create_final_results_table(results_df):
+    """
+    Create a clean results table from raw results. Separates optimized and original preprocessing.
+    """
+    # Separate optimized and original preprocessing
+    optimized_models = results_df[results_df['Model'].str.contains('adjusted')].copy()
+    original_models = results_df[results_df['Model'].str.contains('orig')].copy()
+    
+    # Clean up model names
+    # if not optimized_models.empty: # TODO remove
+    optimized_models['model'] = optimized_models['Model'].str.replace('_adjusted', '')
+    optimized_models['preprocessing'] = 'optimized'
+    
+    # if not original_models.empty: # TODO remove
+    original_models['model'] = original_models['Model'].str.replace('_orig', '')
+    original_models['preprocessing'] = 'original'
+    
+    # Combine tables
+    tables_to_concat = []
+    tables_to_concat.append(optimized_models)
+    tables_to_concat.append(original_models)
+    
+    final_table = pd.concat([
+        df[['model', 'preprocessing', 'val_mae', 'val_rmse', 'val_r2', 
+            'train_mae', 'train_rmse', 'train_r2']]
+        for df in tables_to_concat
+    ], ignore_index=True)
+    
+    # Rename columns for better readability of metrics
+    final_table.columns = [
+        'model', 'preprocessing',
+        'val_MAE', 'val_RMSE', 'val_R2',
+        'train_MAE', 'train_RMSE', 'train_R2'
+    ]
+    
+    # Round values
+    numeric_cols = ['val_MAE', 'val_RMSE', 'val_R2', 'train_MAE', 'train_RMSE', 'train_R2']
+    final_table[numeric_cols] = final_table[numeric_cols].round(4)
+    
+    # Sort by val_MAE (optimized first, then original)
+    optimized_sorted = final_table[final_table['preprocessing'] == 'optimized'].sort_values('val_MAE')
+    original_sorted = final_table[final_table['preprocessing'] == 'original'].sort_values('val_MAE')
+    
+    final_table = pd.concat([optimized_sorted, original_sorted], ignore_index=True)
+    
+    return final_table
 
 
 ################################################################################
@@ -2111,11 +2155,12 @@ def model_hyperparameter_tuning(
     pipeline,
     param_dist,
     n_iter=100,
+    verbose=3,
     verbose_features=None,         
     verbose_metric="mae",          
     verbose_plot=True,
     verbose_top_n=20,
-    n_jobs_search=1,                
+    n_jobs=-1,                
     random_state=42,
 ):
     """
@@ -2136,10 +2181,10 @@ def model_hyperparameter_tuning(
         scoring={"mae": "neg_mean_absolute_error", "mse": "neg_mean_squared_error", "r2": "r2"},
         refit="mae",
         cv=cv,
-        n_jobs=n_jobs_search,
+        n_jobs=n_jobs,
         pre_dispatch="2*n_jobs", # Default
         random_state=random_state,
-        verbose=3,
+        verbose=verbose,
         return_train_score=True,
         error_score="raise",
     )
@@ -2257,37 +2302,81 @@ def model_hyperparameter_tuning(
 
 
 ################################################################################
+# Debug Transformer
+################################################################################
+
+class DebugTransformer(BaseEstimator, TransformerMixin):
+    """
+    Prints shape/type and optionally shows a small preview of the data flowing through the pipeline
+    -> make the pipeline "transparent" during development
+
+    Safe defaults:
+    - show_data=False
+    - y_data_profiling=False
+    """
+
+    def __init__(self, name="Debug", show_data=False, y_data_profiling=False, n_rows=5):
+        self.name = name
+        self.show_data = show_data
+        self.y_data_profiling = y_data_profiling
+        self.n_rows = n_rows
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        print(f"\n--- {self.name} ---")
+        print(f"Shape: {X.shape}")
+        print(f"Type: {type(X)}")
+
+        if self.show_data:
+            if display is None:
+                print("display() not available in this environment.")
+            elif isinstance(X, pd.DataFrame):
+                print(f"\nFirst {self.n_rows} rows:")
+                display(X.head(self.n_rows))
+                display(X.describe(include="all").T)
+                display(X.info())
+                if self.y_data_profiling:
+                    if ProfileReport is None:
+                        print("\nProfileReport not available (ydata_profiling not installed).")
+                    else:
+                        print("\nGenerating data profiling report...")
+                        profile = ProfileReport(
+                            X,
+                            title="Car Data Profiling Report",
+                            correlations={
+                                "pearson": {"calculate": False},
+                                "spearman": {"calculate": True},
+                                "kendall": {"calculate": False},
+                                "phi_k": {"calculate": False},
+                                "cramers": {"calculate": False},
+                            },
+                        )
+                        profile.to_notebook_iframe()
+            else:  # Edge-case for numpy array after column transformer
+                print(f"\nFirst {self.n_rows} rows:")
+                display(X[: self.n_rows])
+
+        return X
+
+
+################################################################################
 # Output compatible wrapper
 ################################################################################
 class SetOutputCompatibleWrapper(BaseEstimator, TransformerMixin):
     """
     Wrapper that adds set_output compatibility to transformers that don't support it.
     
-    This is particularly useful for category_encoders transformers like NestedCVWrapper
-    which don't implement sklearn's set_output API introduced in version 1.2+.
+    This class was created for the category_encoders transformers NestedCVWrapper
+    which doesn't implement sklearn's set_output API introduced in version 1.2+.
+
+    This class was necessary to get the feature names for the DebugTransformer.
     
     Parameters
     ----------
     transformer : estimator
         The transformer to wrap. Must implement fit(), transform(), and get_params().
-    
-    Examples
-    --------
-    >>> from category_encoders import QuantileEncoder
-    >>> from category_encoders.wrapper import NestedCVWrapper
-    >>> from sklearn.model_selection import KFold
-    >>> 
-    >>> # Wrap NestedCVWrapper to make it compatible with set_output
-    >>> encoder = SetOutputCompatibleWrapper(
-    ...     NestedCVWrapper(
-    ...         QuantileEncoder(quantile=0.5, m=10.0),
-    ...         cv=KFold(n_splits=5, shuffle=True, random_state=42),
-    ...         random_state=42
-    ...     )
-    ... )
-    >>> 
-    >>> # Now you can use set_output
-    >>> encoder.set_output(transform="pandas")
     """
     
     def __init__(self, transformer):
@@ -2345,20 +2434,6 @@ class SetOutputCompatibleWrapper(BaseEstimator, TransformerMixin):
     def fit_transform(self, X, y=None, **fit_params):
         """
         Fit and transform in one step.
-        
-        Parameters
-        ----------
-        X : array-like or DataFrame
-            Training data.
-        y : array-like, optional
-            Target values.
-        **fit_params : dict
-            Additional fit parameters.
-            
-        Returns
-        -------
-        X_transformed : array-like or DataFrame
-            Transformed data.
         """
         return self.fit(X, y, **fit_params).transform(X)
     
@@ -2421,4 +2496,3 @@ class SetOutputCompatibleWrapper(BaseEstimator, TransformerMixin):
         if "transformer" in params:
             self.transformer = params["transformer"]
         return self
-
