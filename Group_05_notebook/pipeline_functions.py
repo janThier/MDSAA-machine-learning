@@ -2098,11 +2098,9 @@ def create_final_results_table(results_df):
     original_models = results_df[results_df['Model'].str.contains('orig')].copy()
     
     # Clean up model names
-    # if not optimized_models.empty: # TODO remove
     optimized_models['model'] = optimized_models['Model'].str.replace('_adjusted', '')
     optimized_models['preprocessing'] = 'optimized'
     
-    # if not original_models.empty: # TODO remove
     original_models['model'] = original_models['Model'].str.replace('_orig', '')
     original_models['preprocessing'] = 'original'
     

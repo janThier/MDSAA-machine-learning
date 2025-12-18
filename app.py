@@ -39,7 +39,7 @@ def load_model():
     """Load the trained model pipeline from disk."""
     model = 'rf_tuned_pipe'
     try:
-        loaded_pipe = joblib.load(f"{model}.pkl")
+        loaded_pipe = joblib.load(f"{model}.pkl") # The main notebook has to be run to create this file. It is not included in the zip due to its file size.
         
         # # Extract pipeline
         pipeline = loaded_pipe
