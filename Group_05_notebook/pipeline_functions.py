@@ -2062,7 +2062,7 @@ def run_quick_randomsearch(models_dict, X_train, y_train, cv, n_iter, random_sta
                 cv=cv,
                 n_jobs=-1,
                 random_state=random_state,
-                verbose=1
+                verbose=3
             )
             
             best_params = random_search_object.best_params_

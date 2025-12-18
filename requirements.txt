@@ -1,0 +1,8 @@
+streamlit
+pandas
+scikit-learn
+ydata-profiling
+setuptools
+shap
+category_encoders
+IPython
