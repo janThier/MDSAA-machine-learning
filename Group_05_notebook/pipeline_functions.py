@@ -26,7 +26,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import SelectorMixin, mutual_info_regression
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted, check_X_y
-import time
 
 from scipy.stats import spearmanr
 
@@ -2013,9 +2012,7 @@ def run_quick_randomsearch(models_dict, X_train, y_train, cv, n_iter, random_sta
     
     for name, (pipeline, param_dist) in models_dict.items():
         print(f"Running RandomizedSearchCV for: {name}")
-        
-        start_time = time.time()
-        
+                
         # Skip randomsearch if no parameters to tune (e.g. Median and Linear Regression)
         if not param_dist:
             print(f"No hyperparameters to tune: fit with default parameters...")
@@ -2070,9 +2067,7 @@ def run_quick_randomsearch(models_dict, X_train, y_train, cv, n_iter, random_sta
             
             best_params = random_search_object.best_params_
             best_estimators[name] = tuned_pipe
-        
-        duration = time.time() - start_time
-        
+                
         results.append({
             'Model': name,
             'train_mae': scores_dict['train_mae'],
@@ -2082,10 +2077,8 @@ def run_quick_randomsearch(models_dict, X_train, y_train, cv, n_iter, random_sta
             'val_rmse': scores_dict['val_rmse'],
             'val_r2': scores_dict['val_r2'],
             'Best_Params': str(best_params),
-            'Duration_mins': duration / 60
         })
         
-        print(f"Duration: {duration/60:.2f} minutes\n")
         print("-"*70)
     
     # Create results DataFrame
